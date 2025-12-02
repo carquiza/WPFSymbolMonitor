@@ -1,0 +1,188 @@
+<Window x:Class="CryptoChart.App.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:CryptoChart.App.Controls"
+        xmlns:enums="clr-namespace:CryptoChart.Core.Enums;assembly=CryptoChart.Core"
+        Title="CryptoChart" 
+        Height="800" 
+        Width="1200"
+        MinHeight="600"
+        MinWidth="900"
+        WindowStartupLocation="CenterScreen"
+        Style="{StaticResource DarkWindowStyle}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" 
+                Background="{StaticResource SurfaceBrush}" 
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="16,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Symbol Selector -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ComboBox ItemsSource="{Binding Symbols}"
+                              SelectedItem="{Binding SelectedSymbol}"
+                              Style="{StaticResource DarkComboBoxStyle}"
+                              ItemContainerStyle="{StaticResource DarkComboBoxItemStyle}"
+                              DisplayMemberPath="DisplayName"
+                              MinWidth="140"/>
+                </StackPanel>
+
+                <!-- TimeFrame Toggle -->
+                <StackPanel Grid.Column="1" 
+                            Orientation="Horizontal" 
+                            Margin="24,0,0,0"
+                            VerticalAlignment="Center">
+                    <RadioButton Content="1H" 
+                                 Style="{StaticResource TimeFrameToggleStyle}"
+                                 IsChecked="{Binding SelectedTimeFrame, Converter={StaticResource EnumBoolConverter}, ConverterParameter=Hourly}"
+                                 Command="{Binding SelectTimeFrameCommand}"
+                                 CommandParameter="{x:Static enums:TimeFrame.Hourly}"/>
+                    <RadioButton Content="1D" 
+                                 Style="{StaticResource TimeFrameToggleStyle}"
+                                 IsChecked="{Binding SelectedTimeFrame, Converter={StaticResource EnumBoolConverter}, ConverterParameter=Daily}"
+                                 Command="{Binding SelectTimeFrameCommand}"
+                                 CommandParameter="{x:Static enums:TimeFrame.Daily}"
+                                 Margin="4,0,0,0"/>
+                </StackPanel>
+
+                <!-- Price Display -->
+                <StackPanel Grid.Column="2" 
+                            Orientation="Horizontal" 
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="{Binding CurrentPriceDisplay}" 
+                               Style="{StaticResource PriceTextStyle}"/>
+                    <TextBlock Margin="12,0,0,0" 
+                               VerticalAlignment="Center"
+                               FontSize="14">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="{Binding PriceChangeDisplay}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPriceUp}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource BullishBrush}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsPriceUp}" Value="False">
+                                        <Setter Property="Foreground" Value="{StaticResource BearishBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- Refresh Button -->
+                <Button Grid.Column="3" 
+                        Content="↻ Refresh"
+                        Style="{StaticResource FlatButtonStyle}"
+                        Command="{Binding RefreshDataCommand}"
+                        Padding="12,6"/>
+            </Grid>
+        </Border>
+
+        <!-- Chart Area -->
+        <Grid Grid.Row="1" Margin="16">
+            <!-- Candlestick Chart -->
+            <controls:CandlestickChart x:Name="Chart"
+                                       Candles="{Binding ChartViewModel.VisibleCandles}"
+                                       MinPrice="{Binding ChartViewModel.MinPrice}"
+                                       MaxPrice="{Binding ChartViewModel.MaxPrice}"
+                                       HoveredCandle="{Binding ChartViewModel.HoveredCandle, Mode=TwoWay}"
+                                       ShowCrosshair="{Binding ChartViewModel.ShowCrosshair}"
+                                       CrosshairX="{Binding ChartViewModel.CrosshairX, Mode=TwoWay}"
+                                       CrosshairY="{Binding ChartViewModel.CrosshairY, Mode=TwoWay}"
+                                       BullishColor="{StaticResource BullishColor}"
+                                       BearishColor="{StaticResource BearishColor}"
+                                       GridColor="{StaticResource ChartGridColor}"
+                                       ChartBackground="{StaticResource BackgroundColor}"
+                                       ScrollRequested="OnChartScrollRequested"
+                                       ZoomRequested="OnChartZoomRequested"
+                                       CandleHovered="OnCandleHovered"/>
+
+            <!-- Loading Overlay -->
+            <Border Background="#80000000" 
+                    Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border Style="{StaticResource LoadingSpinnerStyle}"/>
+                    <TextBlock Text="Loading chart data..." 
+                               Margin="0,16,0,0"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- No Data Message -->
+            <TextBlock Text="No data available"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       FontSize="16"
+                       Visibility="{Binding ChartViewModel.HasData, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" 
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Connection Status -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Margin="0,0,8,0">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                        <Setter Property="Fill" Value="{StaticResource SuccessBrush}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsConnected}" Value="False">
+                                        <Setter Property="Fill" Value="{StaticResource TextMutedBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock Text="{Binding ConnectionStatus}" 
+                               Style="{StaticResource SecondaryTextStyle}"/>
+                </StackPanel>
+
+                <!-- Error Message -->
+                <TextBlock Grid.Column="1" 
+                           Text="{Binding ErrorMessage}"
+                           Foreground="{StaticResource ErrorBrush}"
+                           HorizontalAlignment="Center"
+                           Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVisibilityConverter}}"/>
+
+                <!-- Candle Count -->
+                <TextBlock Grid.Column="2" 
+                           Style="{StaticResource SecondaryTextStyle}">
+                    <Run Text="{Binding ChartViewModel.VisibleCandles.Count, Mode=OneWay}"/>
+                    <Run Text=" / "/>
+                    <Run Text="{Binding ChartViewModel.TotalCandleCount, Mode=OneWay}"/>
+                    <Run Text=" candles"/>
+                </TextBlock>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
