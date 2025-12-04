@@ -148,10 +148,30 @@
                                         Padding="12,10"
                                         BorderBrush="#21262D"
                                         BorderThickness="0,0,0,1">
-                                    <TextBlock Text="Market News" 
-                                               Foreground="#E6EDF3" 
-                                               FontWeight="SemiBold"
-                                               FontSize="13"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding DataContext.NewsViewModel.SelectionHeaderText, RelativeSource={RelativeSource AncestorType=Window}}" 
+                                                   Foreground="#E6EDF3" 
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <!-- Clear selection button -->
+                                        <Button Grid.Column="1"
+                                                Content="✕"
+                                                FontSize="10"
+                                                Padding="4,2"
+                                                Margin="4,0,0,0"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Foreground="#8B949E"
+                                                Cursor="Hand"
+                                                Visibility="{Binding DataContext.NewsViewModel.IsShowingCandleSelection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                ToolTip="Show all news"/>
+                                    </Grid>
                                 </Border>
 
                                 <!-- Sentiment Summary -->
@@ -163,19 +183,19 @@
                                         <Border Style="{StaticResource BullishBadgeStyle}">
                                             <TextBlock Foreground="#26A69A" FontSize="11">
                                                 <Run Text="▲"/>
-                                                <Run Text="{Binding TotalBullishCount, RelativeSource={RelativeSource TemplatedParent}, FallbackValue=0}"/>
+                                                <Run Text="{Binding DataContext.NewsViewModel.TotalBullishCount, RelativeSource={RelativeSource AncestorType=Window}, Mode=OneWay, FallbackValue=0}"/>
                                             </TextBlock>
                                         </Border>
                                         <Border Style="{StaticResource BearishBadgeStyle}">
                                             <TextBlock Foreground="#EF5350" FontSize="11">
                                                 <Run Text="▼"/>
-                                                <Run Text="{Binding TotalBearishCount, RelativeSource={RelativeSource TemplatedParent}, FallbackValue=0}"/>
+                                                <Run Text="{Binding DataContext.NewsViewModel.TotalBearishCount, RelativeSource={RelativeSource AncestorType=Window}, Mode=OneWay, FallbackValue=0}"/>
                                             </TextBlock>
                                         </Border>
                                         <Border Style="{StaticResource NeutralBadgeStyle}">
                                             <TextBlock Foreground="#8B949E" FontSize="11">
                                                 <Run Text="●"/>
-                                                <Run Text="{Binding TotalNeutralCount, RelativeSource={RelativeSource TemplatedParent}, FallbackValue=0}"/>
+                                                <Run Text="{Binding DataContext.NewsViewModel.TotalNeutralCount, RelativeSource={RelativeSource AncestorType=Window}, Mode=OneWay, FallbackValue=0}"/>
                                             </TextBlock>
                                         </Border>
                                     </StackPanel>
@@ -218,9 +238,9 @@
 
                                                         <!-- Source -->
                                                         <TextBlock Style="{StaticResource NewsMetaStyle}">
-                                                            <Run Text="{Binding Publisher, TargetNullValue='Unknown'}"/>
+                                                            <Run Text="{Binding Publisher, Mode=OneWay, TargetNullValue='Unknown'}"/>
                                                             <Run Text=" • "/>
-                                                            <Run Text="{Binding SentimentCategory}"/>
+                                                            <Run Text="{Binding SentimentCategory, Mode=OneWay}"/>
                                                         </TextBlock>
                                                     </StackPanel>
                                                 </Border>

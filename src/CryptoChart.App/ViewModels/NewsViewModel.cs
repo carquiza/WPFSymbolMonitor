@@ -12,21 +12,46 @@ namespace CryptoChart.App.ViewModels;
 public partial class NewsViewModel : ObservableObject
 {
     private readonly List<NewsArticle> _allArticles = new();
+    private readonly List<CandleSentiment> _allSentiments = new();
     private readonly object _articlesLock = new();
 
     public NewsViewModel()
     {
         VisibleArticles = new ObservableCollection<NewsArticle>();
         Sentiments = new ObservableCollection<CandleSentiment>();
+        SelectedCandleArticles = new ObservableCollection<NewsArticle>();
     }
 
     #region Properties
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayedArticles))]
     private ObservableCollection<NewsArticle> _visibleArticles;
 
     [ObservableProperty]
     private ObservableCollection<CandleSentiment> _sentiments;
+
+    /// <summary>
+    /// Articles filtered by the currently selected/hovered candle's time range.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayedArticles))]
+    private ObservableCollection<NewsArticle> _selectedCandleArticles;
+
+    /// <summary>
+    /// When true, shows only articles for selected candle instead of all visible articles.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayedArticles))]
+    private bool _isShowingCandleSelection;
+
+    /// <summary>
+    /// The articles to display in the news panel - either filtered by candle or all visible.
+    /// </summary>
+    public ObservableCollection<NewsArticle> DisplayedArticles =>
+        IsShowingCandleSelection && SelectedCandleArticles.Count > 0
+            ? SelectedCandleArticles
+            : VisibleArticles;
 
     [ObservableProperty]
     private NewsArticle? _hoveredArticle;
@@ -55,9 +80,25 @@ public partial class NewsViewModel : ObservableObject
     [ObservableProperty]
     private int _totalNeutralCount;
 
+    /// <summary>
+    /// Current scroll offset (matching ChartViewModel.ScrollOffset).
+    /// </summary>
+    private int _scrollOffset;
+
+    /// <summary>
+    /// Number of visible candles (matching ChartViewModel.VisibleCandleCount).
+    /// </summary>
+    private int _visibleCandleCount = 100;
+
     public int TotalArticleCount => _allArticles.Count;
 
     public bool HasArticles => _allArticles.Count > 0;
+
+    /// <summary>
+    /// Text shown in news panel header when filtering by candle.
+    /// </summary>
+    [ObservableProperty]
+    private string _selectionHeaderText = "Market News";
 
     #endregion
 
@@ -80,15 +121,16 @@ public partial class NewsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Calculates sentiment aggregation for each candle period.
+    /// Calculates sentiment aggregation for ALL candles.
+    /// Call this once after loading candle data.
     /// </summary>
-    public void CalculateSentiments(IEnumerable<Candle> candles)
+    public void CalculateSentiments(IEnumerable<Candle> allCandles)
     {
-        var candleList = candles.OrderBy(c => c.OpenTime).ToList();
+        var candleList = allCandles.OrderBy(c => c.OpenTime).ToList();
 
         lock (_articlesLock)
         {
-            Sentiments.Clear();
+            _allSentiments.Clear();
 
             foreach (var candle in candleList)
             {
@@ -106,9 +148,28 @@ public partial class NewsViewModel : ObservableObject
                     ArticleIds = matchingArticles.Select(a => a.Id).ToList()
                 };
 
-                Sentiments.Add(sentiment);
+                _allSentiments.Add(sentiment);
             }
         }
+
+        // Update the visible sentiments based on current scroll position
+        UpdateVisibleSentiments();
+    }
+
+    /// <summary>
+    /// Updates visible articles and sentiments based on the current scroll offset and visible count.
+    /// Call this when the chart scrolls or zooms.
+    /// </summary>
+    public void UpdateVisibleWindow(int scrollOffset, int visibleCandleCount, DateTime startTime, DateTime endTime)
+    {
+        _scrollOffset = scrollOffset;
+        _visibleCandleCount = visibleCandleCount;
+        VisibleStartTime = startTime;
+        VisibleEndTime = endTime;
+
+        UpdateVisibleSentiments();
+        UpdateVisibleArticles();
+        UpdateCounts();
     }
 
     /// <summary>
@@ -119,10 +180,16 @@ public partial class NewsViewModel : ObservableObject
         VisibleStartTime = startTime;
         VisibleEndTime = endTime;
 
+        UpdateVisibleArticles();
+        UpdateCounts();
+    }
+
+    private void UpdateVisibleArticles()
+    {
         lock (_articlesLock)
         {
             var visible = _allArticles
-                .Where(a => a.PublishedAt >= startTime && a.PublishedAt <= endTime)
+                .Where(a => a.PublishedAt >= VisibleStartTime && a.PublishedAt <= VisibleEndTime)
                 .OrderByDescending(a => a.PublishedAt)
                 .ToList();
 
@@ -132,8 +199,38 @@ public partial class NewsViewModel : ObservableObject
                 VisibleArticles.Add(article);
             }
         }
+        
+        // Notify that DisplayedArticles may have changed
+        OnPropertyChanged(nameof(DisplayedArticles));
+    }
 
-        UpdateCounts();
+    /// <summary>
+    /// Slices _allSentiments to only show sentiments matching the visible candle window.
+    /// </summary>
+    private void UpdateVisibleSentiments()
+    {
+        lock (_articlesLock)
+        {
+            if (_allSentiments.Count == 0)
+            {
+                Sentiments.Clear();
+                return;
+            }
+
+            var startIndex = Math.Max(0, _scrollOffset);
+            var endIndex = Math.Min(_allSentiments.Count, startIndex + _visibleCandleCount);
+
+            var visibleSentiments = _allSentiments
+                .Skip(startIndex)
+                .Take(endIndex - startIndex)
+                .ToList();
+
+            Sentiments.Clear();
+            foreach (var sentiment in visibleSentiments)
+            {
+                Sentiments.Add(sentiment);
+            }
+        }
     }
 
     /// <summary>
@@ -151,7 +248,7 @@ public partial class NewsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Gets the sentiment data for a specific candle index.
+    /// Gets the sentiment data for a specific candle index (within visible range).
     /// </summary>
     public CandleSentiment? GetSentimentAtIndex(int index)
     {
@@ -164,21 +261,53 @@ public partial class NewsViewModel : ObservableObject
 
     /// <summary>
     /// Sets the highlighted index and updates related properties.
+    /// Also filters news articles to the selected candle's time range.
     /// </summary>
-    public void SetHighlightedIndex(int index)
+    public void SetHighlightedIndex(int index, Candle? candle = null)
     {
         HighlightedIndex = index;
         HoveredSentiment = GetSentimentAtIndex(index);
+
+        // Update selected candle articles if candle provided
+        if (candle != null && index >= 0)
+        {
+            var articles = GetArticlesForCandle(candle);
+            SelectedCandleArticles.Clear();
+            foreach (var article in articles)
+            {
+                SelectedCandleArticles.Add(article);
+            }
+            IsShowingCandleSelection = true;
+            SelectionHeaderText = $"News for {candle.OpenTime:MMM dd, HH:mm}";
+            
+            // Force notify DisplayedArticles since we populated SelectedCandleArticles
+            OnPropertyChanged(nameof(DisplayedArticles));
+        }
+        else if (index < 0)
+        {
+            ClearCandleSelection();
+        }
     }
 
     /// <summary>
-    /// Clears the highlighted state.
+    /// Clears the highlighted state and reverts to showing all visible articles.
     /// </summary>
     public void ClearHighlight()
     {
         HighlightedIndex = -1;
         HoveredSentiment = null;
         HoveredArticle = null;
+        ClearCandleSelection();
+    }
+
+    private void ClearCandleSelection()
+    {
+        SelectedCandleArticles.Clear();
+        IsShowingCandleSelection = false;
+        SelectionHeaderText = "Market News";
+        
+        // Force notify DisplayedArticles since we cleared SelectedCandleArticles
+        OnPropertyChanged(nameof(DisplayedArticles));
     }
 
     private void UpdateCounts()

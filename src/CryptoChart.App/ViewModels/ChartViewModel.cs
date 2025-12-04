@@ -13,6 +13,11 @@ public partial class ChartViewModel : ObservableObject
     private readonly List<Candle> _allCandles = new();
     private readonly object _candleLock = new();
 
+    /// <summary>
+    /// Event raised when the visible range changes (scroll, zoom, or data update).
+    /// </summary>
+    public event EventHandler<VisibleRangeChangedEventArgs>? VisibleRangeChanged;
+
     public ChartViewModel()
     {
         VisibleCandles = new ObservableCollection<Candle>();
@@ -80,6 +85,17 @@ public partial class ChartViewModel : ObservableObject
         UpdateVisibleRange();
 
         HasData = _allCandles.Count > 0;
+    }
+
+    /// <summary>
+    /// Gets all candles for sentiment calculation.
+    /// </summary>
+    public IEnumerable<Candle> GetAllCandles()
+    {
+        lock (_candleLock)
+        {
+            return _allCandles.ToList();
+        }
     }
 
     /// <summary>
@@ -175,6 +191,19 @@ public partial class ChartViewModel : ObservableObject
         // Notify property changes
         OnPropertyChanged(nameof(TotalCandleCount));
         OnPropertyChanged(nameof(MaxScrollOffset));
+
+        // Raise visible range changed event for news/sentiment synchronization
+        RaiseVisibleRangeChanged();
+    }
+
+    private void RaiseVisibleRangeChanged()
+    {
+        VisibleRangeChanged?.Invoke(this, new VisibleRangeChangedEventArgs(
+            ScrollOffset,
+            VisibleCandleCount,
+            StartTime,
+            EndTime
+        ));
     }
 
     /// <summary>
@@ -227,4 +256,23 @@ public partial class ChartViewModel : ObservableObject
     }
 
     #endregion
+}
+
+/// <summary>
+/// Event args for visible range changes.
+/// </summary>
+public class VisibleRangeChangedEventArgs : EventArgs
+{
+    public int ScrollOffset { get; }
+    public int VisibleCandleCount { get; }
+    public DateTime StartTime { get; }
+    public DateTime EndTime { get; }
+
+    public VisibleRangeChangedEventArgs(int scrollOffset, int visibleCandleCount, DateTime startTime, DateTime endTime)
+    {
+        ScrollOffset = scrollOffset;
+        VisibleCandleCount = visibleCandleCount;
+        StartTime = startTime;
+        EndTime = endTime;
+    }
 }

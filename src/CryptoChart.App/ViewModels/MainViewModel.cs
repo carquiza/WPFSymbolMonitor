@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using CryptoChart.Core.Enums;
 using CryptoChart.Core.Interfaces;
 using CryptoChart.Core.Models;
+using CryptoChart.Services.News;
 
 namespace CryptoChart.App.ViewModels;
 
@@ -15,7 +16,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly ISymbolRepository _symbolRepository;
     private readonly ICandleRepository _candleRepository;
-    private readonly INewsRepository? _newsRepository;
+    private readonly INewsRepository _newsRepository;
     private readonly IMarketDataService _marketDataService;
     private readonly IRealtimeMarketService _realtimeService;
 
@@ -24,7 +25,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         ICandleRepository candleRepository,
         IMarketDataService marketDataService,
         IRealtimeMarketService realtimeService,
-        INewsRepository? newsRepository = null)
+        INewsRepository newsRepository)
     {
         _symbolRepository = symbolRepository;
         _candleRepository = candleRepository;
@@ -38,6 +39,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         // Create the child view models
         ChartViewModel = new ChartViewModel();
         NewsViewModel = new NewsViewModel();
+
+        // Subscribe to visible range changes for sentiment sync
+        ChartViewModel.VisibleRangeChanged += OnVisibleRangeChanged;
     }
 
     #region Properties
@@ -225,31 +229,86 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private async Task LoadNewsAsync(List<Candle> candles)
     {
-        if (_newsRepository == null || SelectedSymbol == null || candles.Count == 0)
+        if (SelectedSymbol == null || candles.Count == 0)
             return;
 
         try
         {
-            // Get the time range from candles
+            // Get the time range from ALL candles (for loading news)
             var startTime = candles.First().OpenTime;
             var endTime = candles.Last().CloseTime;
 
+            // Convert trading pair (BTCUSDT) to base asset (BTC) for news query
+            var baseAsset = CryptoSymbolMapper.GetBaseAsset(SelectedSymbol.Name);
+            
+            System.Diagnostics.Debug.WriteLine($"Loading news for {baseAsset} from {startTime} to {endTime}");
+
             // Load news for this symbol and time range
             var articles = await _newsRepository.GetNewsAsync(
-                SelectedSymbol.Name, 
+                baseAsset, 
                 startTime, 
                 endTime);
 
-            // Update the news view model
-            NewsViewModel.UpdateArticles(articles);
+            var articleList = articles.ToList();
+            System.Diagnostics.Debug.WriteLine($"Found {articleList.Count} news articles for {baseAsset}");
+
+            // Update the news view model with articles
+            NewsViewModel.UpdateArticles(articleList);
+            
+            // Calculate sentiments for ALL candles (not just visible ones)
             NewsViewModel.CalculateSentiments(candles);
-            NewsViewModel.UpdateVisibleRange(startTime, endTime);
+            
+            // The visible range will be updated via the VisibleRangeChanged event
         }
         catch (Exception ex)
         {
             // News loading is non-critical, just log the error
             System.Diagnostics.Debug.WriteLine($"Failed to load news: {ex.Message}");
         }
+    }
+
+    #endregion
+
+    #region Visible Range Synchronization
+
+    /// <summary>
+    /// Called when the chart's visible range changes (scroll, zoom, or initial load).
+    /// Synchronizes the news/sentiment view models.
+    /// </summary>
+    private void OnVisibleRangeChanged(object? sender, VisibleRangeChangedEventArgs e)
+    {
+        NewsViewModel.UpdateVisibleWindow(
+            e.ScrollOffset,
+            e.VisibleCandleCount,
+            e.StartTime,
+            e.EndTime
+        );
+    }
+
+    /// <summary>
+    /// Called by MainWindow when a candle is hovered.
+    /// Updates both chart and news view models.
+    /// </summary>
+    public void OnCandleHovered(int candleIndex)
+    {
+        ChartViewModel.SetHoveredCandle(candleIndex);
+
+        // Pass the actual candle to NewsViewModel for article filtering
+        var hoveredCandle = candleIndex >= 0 && candleIndex < ChartViewModel.VisibleCandles.Count
+            ? ChartViewModel.VisibleCandles[candleIndex]
+            : null;
+
+        NewsViewModel.SetHighlightedIndex(candleIndex, hoveredCandle);
+    }
+
+    /// <summary>
+    /// Called by MainWindow when mouse leaves the chart.
+    /// Clears hover state from both view models.
+    /// </summary>
+    public void OnCandleHoverCleared()
+    {
+        ChartViewModel.ClearHover();
+        NewsViewModel.ClearHighlight();
     }
 
     #endregion
@@ -322,6 +381,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         _realtimeService.CandleUpdated -= OnCandleUpdated;
         _realtimeService.ConnectionStatusChanged -= OnConnectionStatusChanged;
+        ChartViewModel.VisibleRangeChanged -= OnVisibleRangeChanged;
         await _realtimeService.UnsubscribeAllAsync();
     }
 

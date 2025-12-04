@@ -147,13 +147,15 @@
                                            ChartBackground="{StaticResource BackgroundColor}"
                                            ScrollRequested="OnChartScrollRequested"
                                            ZoomRequested="OnChartZoomRequested"
-                                           CandleHovered="OnCandleHovered"/>
+                                           CandleHovered="OnCandleHovered"
+                                           MouseLeave="OnChartMouseLeave"/>
 
                 <!-- Sentiment Bar Chart (Below Candlesticks) -->
                 <controls:SentimentChart x:Name="SentimentChart"
                                          Grid.Row="1"
                                          Margin="0,4,0,0"
                                          Sentiments="{Binding NewsViewModel.Sentiments}"
+                                         CandleCount="{Binding ChartViewModel.VisibleCandles.Count, Mode=OneWay}"
                                          HighlightedIndex="{Binding NewsViewModel.HighlightedIndex, Mode=OneWay}"
                                          BullishColor="{StaticResource BullishColor}"
                                          BearishColor="{StaticResource BearishColor}"
@@ -185,7 +187,7 @@
             <!-- News Panel (Right) -->
             <controls:NewsPanel Grid.Column="1"
                                 Margin="0,16,16,16"
-                                Articles="{Binding NewsViewModel.VisibleArticles}"
+                                Articles="{Binding NewsViewModel.DisplayedArticles}"
                                 IsExpanded="{Binding NewsViewModel.IsPanelExpanded, Mode=TwoWay}"
                                 TimeRangeStart="{Binding ChartViewModel.StartTime}"
                                 TimeRangeEnd="{Binding ChartViewModel.EndTime}"

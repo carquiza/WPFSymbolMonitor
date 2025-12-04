@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
@@ -105,6 +106,21 @@ public class SentimentChart : FrameworkElement
         set => SetValue(GridColorProperty, value);
     }
 
+    /// <summary>
+    /// Number of candles in the visible range. Used to align bars with the candlestick chart.
+    /// If not set or 0, falls back to Sentiments.Count.
+    /// </summary>
+    public static readonly DependencyProperty CandleCountProperty =
+        DependencyProperty.Register(nameof(CandleCount), typeof(int),
+            typeof(SentimentChart),
+            new FrameworkPropertyMetadata(0, OnDataChanged));
+
+    public int CandleCount
+    {
+        get => (int)GetValue(CandleCountProperty);
+        set => SetValue(CandleCountProperty, value);
+    }
+
     #endregion
 
     #region Visual Tree Overrides
@@ -124,7 +140,26 @@ public class SentimentChart : FrameworkElement
 
     private static void OnDataChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        ((SentimentChart)d).InvalidateChart();
+        var chart = (SentimentChart)d;
+        
+        // Unsubscribe from old collection
+        if (e.OldValue is INotifyCollectionChanged oldCollection)
+        {
+            oldCollection.CollectionChanged -= chart.OnSentimentsCollectionChanged;
+        }
+        
+        // Subscribe to new collection
+        if (e.NewValue is INotifyCollectionChanged newCollection)
+        {
+            newCollection.CollectionChanged += chart.OnSentimentsCollectionChanged;
+        }
+        
+        chart.InvalidateChart();
+    }
+
+    private void OnSentimentsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        InvalidateChart();
     }
 
     private static void OnHighlightChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -212,6 +247,10 @@ public class SentimentChart : FrameworkElement
         var sentimentList = Sentiments.ToList();
         if (sentimentList.Count == 0) return;
 
+        // Use CandleCount for alignment if set, otherwise fall back to sentiment count
+        var totalSlots = CandleCount > 0 ? CandleCount : sentimentList.Count;
+        if (totalSlots == 0) return;
+
         // Calculate max count for scaling
         var maxCount = sentimentList.Max(s => Math.Max(s.BullishCount, s.BearishCount));
         if (maxCount == 0) maxCount = 1;
@@ -222,13 +261,15 @@ public class SentimentChart : FrameworkElement
         var bearishBrush = new SolidColorBrush(BearishColor);
         bearishBrush.Freeze();
 
-        var barWidth = Math.Max(2, (ChartWidth / sentimentList.Count) - 2);
+        var slotWidth = ChartWidth / totalSlots;
+        var barWidth = Math.Max(2, slotWidth - 2);
         var halfHeight = ChartHeight / 2 - 2; // Leave some padding
 
         for (int i = 0; i < sentimentList.Count; i++)
         {
             var sentiment = sentimentList[i];
-            var x = LeftMargin + (i * (ChartWidth / sentimentList.Count)) + ((ChartWidth / sentimentList.Count) / 2);
+            // Position bar at center of slot (matches candlestick chart positioning)
+            var x = LeftMargin + (i * slotWidth) + (slotWidth / 2);
 
             // Draw bullish bar (upward from center)
             if (sentiment.BullishCount > 0)
@@ -257,15 +298,18 @@ public class SentimentChart : FrameworkElement
         if (HighlightedIndex < 0 || Sentiments == null) return;
 
         var sentimentList = Sentiments.ToList();
-        if (HighlightedIndex >= sentimentList.Count) return;
+        
+        // Use CandleCount for alignment if set, otherwise fall back to sentiment count
+        var totalSlots = CandleCount > 0 ? CandleCount : sentimentList.Count;
+        if (totalSlots == 0 || HighlightedIndex >= totalSlots) return;
 
-        var x = LeftMargin + (HighlightedIndex * (ChartWidth / sentimentList.Count)) + ((ChartWidth / sentimentList.Count) / 2);
-        var highlightWidth = ChartWidth / sentimentList.Count;
+        var slotWidth = ChartWidth / totalSlots;
+        var x = LeftMargin + (HighlightedIndex * slotWidth) + (slotWidth / 2);
 
         // Draw highlight rectangle
         var highlightBrush = new SolidColorBrush(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF));
         highlightBrush.Freeze();
-        var rect = new Rect(x - highlightWidth / 2, TopMargin, highlightWidth, ChartHeight);
+        var rect = new Rect(x - slotWidth / 2, TopMargin, slotWidth, ChartHeight);
         dc.DrawRectangle(highlightBrush, null, rect);
     }
 

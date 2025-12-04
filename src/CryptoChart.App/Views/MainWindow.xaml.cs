@@ -42,12 +42,12 @@ public partial class MainWindow : Window
 
     private void OnCandleHovered(object sender, CandleHoveredEventArgs e)
     {
-        ViewModel.ChartViewModel.SetHoveredCandle(e.CandleIndex);
-        
-        // Synchronize sentiment chart highlight
-        if (ViewModel.NewsViewModel != null)
-        {
-            ViewModel.NewsViewModel.SetHighlightedIndex(e.CandleIndex);
-        }
+        // Use the MainViewModel's unified method that updates both chart and news
+        ViewModel.OnCandleHovered(e.CandleIndex);
+    }
+
+    private void OnChartMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        ViewModel.OnCandleHoverCleared();
     }
 }
