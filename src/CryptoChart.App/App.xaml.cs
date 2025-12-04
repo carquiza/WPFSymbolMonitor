@@ -8,6 +8,7 @@ using CryptoChart.Data.Repositories;
 using CryptoChart.Services.Binance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 
 namespace CryptoChart.App;
 
@@ -41,6 +42,7 @@ public partial class App : Application
         // Repositories
         services.AddScoped<ISymbolRepository, SymbolRepository>();
         services.AddScoped<ICandleRepository, CandleRepository>();
+        services.AddScoped<INewsRepository, NewsRepository>();
 
         // HTTP Client for Binance
         services.AddHttpClient<IMarketDataService, BinanceMarketDataService>();

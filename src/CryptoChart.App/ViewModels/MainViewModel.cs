@@ -15,6 +15,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly ISymbolRepository _symbolRepository;
     private readonly ICandleRepository _candleRepository;
+    private readonly INewsRepository? _newsRepository;
     private readonly IMarketDataService _marketDataService;
     private readonly IRealtimeMarketService _realtimeService;
 
@@ -22,24 +23,30 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         ISymbolRepository symbolRepository,
         ICandleRepository candleRepository,
         IMarketDataService marketDataService,
-        IRealtimeMarketService realtimeService)
+        IRealtimeMarketService realtimeService,
+        INewsRepository? newsRepository = null)
     {
         _symbolRepository = symbolRepository;
         _candleRepository = candleRepository;
         _marketDataService = marketDataService;
         _realtimeService = realtimeService;
+        _newsRepository = newsRepository;
 
         _realtimeService.CandleUpdated += OnCandleUpdated;
         _realtimeService.ConnectionStatusChanged += OnConnectionStatusChanged;
 
-        // Create the chart view model
+        // Create the child view models
         ChartViewModel = new ChartViewModel();
+        NewsViewModel = new NewsViewModel();
     }
 
     #region Properties
 
     [ObservableProperty]
     private ChartViewModel _chartViewModel;
+
+    [ObservableProperty]
+    private NewsViewModel _newsViewModel;
 
     [ObservableProperty]
     private ObservableCollection<Symbol> _symbols = new();
@@ -200,6 +207,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
                     : 0;
             }
 
+            // Load news data if repository is available
+            await LoadNewsAsync(candleList);
+
             // Subscribe to real-time updates
             await _realtimeService.SubscribeAsync(SelectedSymbol.Name, SelectedTimeFrame);
         }
@@ -210,6 +220,35 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    private async Task LoadNewsAsync(List<Candle> candles)
+    {
+        if (_newsRepository == null || SelectedSymbol == null || candles.Count == 0)
+            return;
+
+        try
+        {
+            // Get the time range from candles
+            var startTime = candles.First().OpenTime;
+            var endTime = candles.Last().CloseTime;
+
+            // Load news for this symbol and time range
+            var articles = await _newsRepository.GetNewsAsync(
+                SelectedSymbol.Name, 
+                startTime, 
+                endTime);
+
+            // Update the news view model
+            NewsViewModel.UpdateArticles(articles);
+            NewsViewModel.CalculateSentiments(candles);
+            NewsViewModel.UpdateVisibleRange(startTime, endTime);
+        }
+        catch (Exception ex)
+        {
+            // News loading is non-critical, just log the error
+            System.Diagnostics.Debug.WriteLine($"Failed to load news: {ex.Message}");
         }
     }
 

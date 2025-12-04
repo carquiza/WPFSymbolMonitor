@@ -43,5 +43,11 @@ public partial class MainWindow : Window
     private void OnCandleHovered(object sender, CandleHoveredEventArgs e)
     {
         ViewModel.ChartViewModel.SetHoveredCandle(e.CandleIndex);
+        
+        // Synchronize sentiment chart highlight
+        if (ViewModel.NewsViewModel != null)
+        {
+            ViewModel.NewsViewModel.SetHighlightedIndex(e.CandleIndex);
+        }
     }
 }

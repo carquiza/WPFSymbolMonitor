@@ -147,6 +147,17 @@ public class CandlestickChart : FrameworkElement
         set => SetValue(ShowCrosshairProperty, value);
     }
 
+    public static readonly DependencyProperty HoveredSentimentProperty =
+        DependencyProperty.Register(nameof(HoveredSentiment), typeof(CandleSentiment),
+            typeof(CandlestickChart),
+            new FrameworkPropertyMetadata(null, OnCrosshairChanged));
+
+    public CandleSentiment? HoveredSentiment
+    {
+        get => (CandleSentiment?)GetValue(HoveredSentimentProperty);
+        set => SetValue(HoveredSentimentProperty, value);
+    }
+
     public static readonly DependencyProperty CrosshairXProperty =
         DependencyProperty.Register(nameof(CrosshairX), typeof(double),
             typeof(CandlestickChart),
@@ -474,32 +485,50 @@ public class CandlestickChart : FrameworkElement
         bgBrush.Freeze();
         var borderBrush = new SolidColorBrush(Color.FromRgb(0x30, 0x36, 0x3D));
         borderBrush.Freeze();
+        var bullishBrush = new SolidColorBrush(BullishColor);
+        bullishBrush.Freeze();
+        var bearishBrush = new SolidColorBrush(BearishColor);
+        bearishBrush.Freeze();
 
         var typeface = new Typeface(new FontFamily("Cascadia Mono"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
 
-        var lines = new[]
+        // Build tooltip lines
+        var lines = new List<(string text, Brush brush)>
         {
-            $"O: {FormatPrice(HoveredCandle.Open)}",
-            $"H: {FormatPrice(HoveredCandle.High)}",
-            $"L: {FormatPrice(HoveredCandle.Low)}",
-            $"C: {FormatPrice(HoveredCandle.Close)}",
-            $"V: {HoveredCandle.Volume:N0}"
+            ($"O: {FormatPrice(HoveredCandle.Open)}", textBrush),
+            ($"H: {FormatPrice(HoveredCandle.High)}", textBrush),
+            ($"L: {FormatPrice(HoveredCandle.Low)}", textBrush),
+            ($"C: {FormatPrice(HoveredCandle.Close)}", textBrush),
+            ($"V: {HoveredCandle.Volume:N0}", secondaryBrush)
         };
+
+        // Add sentiment info if available
+        if (HoveredSentiment != null && HoveredSentiment.HasNews)
+        {
+            lines.Add(("", secondaryBrush)); // Spacer
+            if (HoveredSentiment.BullishCount > 0)
+                lines.Add(($"▲ {HoveredSentiment.BullishCount} Bullish", bullishBrush));
+            if (HoveredSentiment.BearishCount > 0)
+                lines.Add(($"▼ {HoveredSentiment.BearishCount} Bearish", bearishBrush));
+            if (HoveredSentiment.NeutralCount > 0)
+                lines.Add(($"● {HoveredSentiment.NeutralCount} Neutral", secondaryBrush));
+        }
 
         var maxWidth = 0.0;
         var lineHeight = 16.0;
         var padding = 8.0;
 
-        foreach (var line in lines)
+        foreach (var (lineText, _) in lines)
         {
+            if (string.IsNullOrEmpty(lineText)) continue;
             var text = new FormattedText(
-                line, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                lineText, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
                 typeface, 11, textBrush, VisualTreeHelper.GetDpi(this).PixelsPerDip);
             maxWidth = Math.Max(maxWidth, text.Width);
         }
 
         var tooltipWidth = maxWidth + padding * 2;
-        var tooltipHeight = lines.Length * lineHeight + padding * 2;
+        var tooltipHeight = lines.Count * lineHeight + padding * 2;
         var tooltipX = Math.Min(CrosshairX + 15, ActualWidth - tooltipWidth - 10);
         var tooltipY = Math.Max(TopMargin, Math.Min(CrosshairY - tooltipHeight / 2, ActualHeight - BottomMargin - tooltipHeight));
 
@@ -507,21 +536,17 @@ public class CandlestickChart : FrameworkElement
         var tooltipRect = new Rect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
         dc.DrawRoundedRectangle(bgBrush, new Pen(borderBrush, 1), tooltipRect, 4, 4);
 
-        // Draw text
+        // Draw text lines
         var y = tooltipY + padding;
-        for (int i = 0; i < lines.Length; i++)
+        foreach (var (lineText, lineBrush) in lines)
         {
-            var brush = i < 4 ? (HoveredCandle.IsBullish 
-                ? new SolidColorBrush(BullishColor) 
-                : new SolidColorBrush(BearishColor)) : secondaryBrush;
-            
-            if (i < 4) brush.Freeze();
-
-            var text = new FormattedText(
-                lines[i], CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-                typeface, 11, i == 4 ? secondaryBrush : textBrush, 
-                VisualTreeHelper.GetDpi(this).PixelsPerDip);
-            dc.DrawText(text, new Point(tooltipX + padding, y));
+            if (!string.IsNullOrEmpty(lineText))
+            {
+                var text = new FormattedText(
+                    lineText, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                    typeface, 11, lineBrush, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+                dc.DrawText(text, new Point(tooltipX + padding, y));
+            }
             y += lineHeight;
         }
 

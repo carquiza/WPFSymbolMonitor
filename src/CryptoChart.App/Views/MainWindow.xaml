@@ -4,10 +4,10 @@
         xmlns:controls="clr-namespace:CryptoChart.App.Controls"
         xmlns:enums="clr-namespace:CryptoChart.Core.Enums;assembly=CryptoChart.Core"
         Title="CryptoChart" 
-        Height="800" 
-        Width="1200"
-        MinHeight="600"
-        MinWidth="900"
+        Height="900" 
+        Width="1400"
+        MinHeight="700"
+        MinWidth="1100"
         WindowStartupLocation="CenterScreen"
         Style="{StaticResource DarkWindowStyle}">
 
@@ -29,6 +29,7 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
@@ -86,8 +87,28 @@
                     </TextBlock>
                 </StackPanel>
 
+                <!-- Sentiment Summary (in header) -->
+                <StackPanel Grid.Column="3" 
+                            Orientation="Horizontal" 
+                            VerticalAlignment="Center"
+                            Margin="0,0,16,0"
+                            Visibility="{Binding NewsViewModel.HasArticles, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Border Style="{StaticResource BullishBadgeStyle}" Margin="0,0,4,0">
+                        <TextBlock Foreground="{StaticResource BullishBrush}" FontSize="11">
+                            <Run Text="▲"/>
+                            <Run Text="{Binding NewsViewModel.TotalBullishCount, Mode=OneWay}"/>
+                        </TextBlock>
+                    </Border>
+                    <Border Style="{StaticResource BearishBadgeStyle}">
+                        <TextBlock Foreground="{StaticResource BearishBrush}" FontSize="11">
+                            <Run Text="▼"/>
+                            <Run Text="{Binding NewsViewModel.TotalBearishCount, Mode=OneWay}"/>
+                        </TextBlock>
+                    </Border>
+                </StackPanel>
+
                 <!-- Refresh Button -->
-                <Button Grid.Column="3" 
+                <Button Grid.Column="4" 
                         Content="↻ Refresh"
                         Style="{StaticResource FlatButtonStyle}"
                         Command="{Binding RefreshDataCommand}"
@@ -95,43 +116,82 @@
             </Grid>
         </Border>
 
-        <!-- Chart Area -->
-        <Grid Grid.Row="1" Margin="16">
-            <!-- Candlestick Chart -->
-            <controls:CandlestickChart x:Name="Chart"
-                                       Candles="{Binding ChartViewModel.VisibleCandles}"
-                                       MinPrice="{Binding ChartViewModel.MinPrice}"
-                                       MaxPrice="{Binding ChartViewModel.MaxPrice}"
-                                       HoveredCandle="{Binding ChartViewModel.HoveredCandle, Mode=TwoWay}"
-                                       ShowCrosshair="{Binding ChartViewModel.ShowCrosshair}"
-                                       CrosshairX="{Binding ChartViewModel.CrosshairX, Mode=TwoWay}"
-                                       CrosshairY="{Binding ChartViewModel.CrosshairY, Mode=TwoWay}"
-                                       BullishColor="{StaticResource BullishColor}"
-                                       BearishColor="{StaticResource BearishColor}"
-                                       GridColor="{StaticResource ChartGridColor}"
-                                       ChartBackground="{StaticResource BackgroundColor}"
-                                       ScrollRequested="OnChartScrollRequested"
-                                       ZoomRequested="OnChartZoomRequested"
-                                       CandleHovered="OnCandleHovered"/>
+        <!-- Main Content Area -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
-            <!-- Loading Overlay -->
-            <Border Background="#80000000" 
-                    Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Border Style="{StaticResource LoadingSpinnerStyle}"/>
-                    <TextBlock Text="Loading chart data..." 
-                               Margin="0,16,0,0"
-                               Foreground="{StaticResource TextSecondaryBrush}"/>
-                </StackPanel>
-            </Border>
+            <!-- Chart Area (Left) -->
+            <Grid Grid.Column="0" Margin="16,16,8,16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="80"/>
+                </Grid.RowDefinitions>
 
-            <!-- No Data Message -->
-            <TextBlock Text="No data available"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Foreground="{StaticResource TextMutedBrush}"
-                       FontSize="16"
-                       Visibility="{Binding ChartViewModel.HasData, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+                <!-- Candlestick Chart -->
+                <controls:CandlestickChart x:Name="Chart"
+                                           Grid.Row="0"
+                                           Candles="{Binding ChartViewModel.VisibleCandles}"
+                                           MinPrice="{Binding ChartViewModel.MinPrice}"
+                                           MaxPrice="{Binding ChartViewModel.MaxPrice}"
+                                           HoveredCandle="{Binding ChartViewModel.HoveredCandle, Mode=TwoWay}"
+                                           HoveredSentiment="{Binding NewsViewModel.HoveredSentiment, Mode=OneWay}"
+                                           ShowCrosshair="{Binding ChartViewModel.ShowCrosshair}"
+                                           CrosshairX="{Binding ChartViewModel.CrosshairX, Mode=TwoWay}"
+                                           CrosshairY="{Binding ChartViewModel.CrosshairY, Mode=TwoWay}"
+                                           BullishColor="{StaticResource BullishColor}"
+                                           BearishColor="{StaticResource BearishColor}"
+                                           GridColor="{StaticResource ChartGridColor}"
+                                           ChartBackground="{StaticResource BackgroundColor}"
+                                           ScrollRequested="OnChartScrollRequested"
+                                           ZoomRequested="OnChartZoomRequested"
+                                           CandleHovered="OnCandleHovered"/>
+
+                <!-- Sentiment Bar Chart (Below Candlesticks) -->
+                <controls:SentimentChart x:Name="SentimentChart"
+                                         Grid.Row="1"
+                                         Margin="0,4,0,0"
+                                         Sentiments="{Binding NewsViewModel.Sentiments}"
+                                         HighlightedIndex="{Binding NewsViewModel.HighlightedIndex, Mode=OneWay}"
+                                         BullishColor="{StaticResource BullishColor}"
+                                         BearishColor="{StaticResource BearishColor}"
+                                         GridColor="{StaticResource ChartGridColor}"
+                                         ChartBackground="{StaticResource BackgroundColor}"/>
+
+                <!-- Loading Overlay -->
+                <Border Grid.RowSpan="2"
+                        Background="#80000000" 
+                        Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Border Style="{StaticResource LoadingSpinnerStyle}"/>
+                        <TextBlock Text="Loading chart data..." 
+                                   Margin="0,16,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- No Data Message -->
+                <TextBlock Grid.RowSpan="2"
+                           Text="No data available"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="16"
+                           Visibility="{Binding ChartViewModel.HasData, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+            </Grid>
+
+            <!-- News Panel (Right) -->
+            <controls:NewsPanel Grid.Column="1"
+                                Margin="0,16,16,16"
+                                Articles="{Binding NewsViewModel.VisibleArticles}"
+                                IsExpanded="{Binding NewsViewModel.IsPanelExpanded, Mode=TwoWay}"
+                                TimeRangeStart="{Binding ChartViewModel.StartTime}"
+                                TimeRangeEnd="{Binding ChartViewModel.EndTime}"
+                                HighlightedTime="{Binding ChartViewModel.HoveredCandle.OpenTime}"
+                                BullishColor="{StaticResource BullishColor}"
+                                BearishColor="{StaticResource BearishColor}"/>
         </Grid>
 
         <!-- Status Bar -->
@@ -142,6 +202,7 @@
                 Padding="16,8">
             <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
@@ -167,15 +228,27 @@
                                Style="{StaticResource SecondaryTextStyle}"/>
                 </StackPanel>
 
+                <!-- News Count -->
+                <StackPanel Grid.Column="1" 
+                            Orientation="Horizontal" 
+                            VerticalAlignment="Center"
+                            Margin="24,0,0,0"
+                            Visibility="{Binding NewsViewModel.HasArticles, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <TextBlock Style="{StaticResource SecondaryTextStyle}">
+                        <Run Text="{Binding NewsViewModel.TotalArticleCount, Mode=OneWay}"/>
+                        <Run Text=" news articles"/>
+                    </TextBlock>
+                </StackPanel>
+
                 <!-- Error Message -->
-                <TextBlock Grid.Column="1" 
+                <TextBlock Grid.Column="2" 
                            Text="{Binding ErrorMessage}"
                            Foreground="{StaticResource ErrorBrush}"
                            HorizontalAlignment="Center"
                            Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVisibilityConverter}}"/>
 
                 <!-- Candle Count -->
-                <TextBlock Grid.Column="2" 
+                <TextBlock Grid.Column="3" 
                            Style="{StaticResource SecondaryTextStyle}">
                     <Run Text="{Binding ChartViewModel.VisibleCandles.Count, Mode=OneWay}"/>
                     <Run Text=" / "/>

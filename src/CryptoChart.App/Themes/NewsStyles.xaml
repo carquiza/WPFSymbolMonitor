@@ -1,0 +1,249 @@
+<!-- CryptoChart.App/Themes/NewsStyles.xaml -->
+<!-- Styles for news panel and sentiment display -->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:CryptoChart.App.Controls">
+
+    <!-- Sentiment Badge Style -->
+    <Style x:Key="SentimentBadgeStyle" TargetType="Border">
+        <Setter Property="CornerRadius" Value="3"/>
+        <Setter Property="Padding" Value="6,2"/>
+        <Setter Property="Margin" Value="0,0,4,0"/>
+    </Style>
+
+    <Style x:Key="BullishBadgeStyle" TargetType="Border" BasedOn="{StaticResource SentimentBadgeStyle}">
+        <Setter Property="Background" Value="#1A26A69A"/>
+        <Setter Property="BorderBrush" Value="#26A69A"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style x:Key="BearishBadgeStyle" TargetType="Border" BasedOn="{StaticResource SentimentBadgeStyle}">
+        <Setter Property="Background" Value="#1AEF5350"/>
+        <Setter Property="BorderBrush" Value="#EF5350"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style x:Key="NeutralBadgeStyle" TargetType="Border" BasedOn="{StaticResource SentimentBadgeStyle}">
+        <Setter Property="Background" Value="#1A8B949E"/>
+        <Setter Property="BorderBrush" Value="#8B949E"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <!-- News Item Style -->
+    <Style x:Key="NewsItemStyle" TargetType="Border">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="#21262D"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        <Setter Property="Padding" Value="12,10"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="#161B22"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- News Headline Style -->
+    <Style x:Key="NewsHeadlineStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#E6EDF3"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        <Setter Property="MaxHeight" Value="48"/>
+    </Style>
+
+    <!-- News Meta Style (time, source) -->
+    <Style x:Key="NewsMetaStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#8B949E"/>
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="Margin" Value="0,4,0,0"/>
+    </Style>
+
+    <!-- Panel Toggle Button Style -->
+    <Style x:Key="PanelToggleStyle" TargetType="ToggleButton">
+        <Setter Property="Background" Value="#21262D"/>
+        <Setter Property="Foreground" Value="#8B949E"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Width" Value="24"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="ToggleBorder"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="#30363D"
+                            BorderThickness="1,0,0,0">
+                        <TextBlock x:Name="ArrowText"
+                                   Text="❮" 
+                                   HorizontalAlignment="Center" 
+                                   VerticalAlignment="Center"
+                                   Foreground="{TemplateBinding Foreground}"
+                                   FontSize="12"
+                                   RenderTransformOrigin="0.5,0.5">
+                            <TextBlock.RenderTransform>
+                                <RotateTransform Angle="0"/>
+                            </TextBlock.RenderTransform>
+                        </TextBlock>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="ArrowText" Property="RenderTransform">
+                                <Setter.Value>
+                                    <RotateTransform Angle="180"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ToggleBorder" Property="Background" Value="#30363D"/>
+                            <Setter TargetName="ArrowText" Property="Foreground" Value="#E6EDF3"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- NewsPanel Template -->
+    <Style TargetType="{x:Type controls:NewsPanel}">
+        <Setter Property="Background" Value="#0D1117"/>
+        <Setter Property="BorderBrush" Value="#30363D"/>
+        <Setter Property="BorderThickness" Value="1,0,0,0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:NewsPanel}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Toggle Button -->
+                        <ToggleButton Grid.Column="0"
+                                      Style="{StaticResource PanelToggleStyle}"
+                                      IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"/>
+
+                        <!-- Panel Content -->
+                        <Border Grid.Column="1"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <Border.Width>
+                                <Binding Path="IsExpanded" RelativeSource="{RelativeSource TemplatedParent}">
+                                    <Binding.Converter>
+                                        <controls:BoolToWidthConverter ExpandedWidth="280" CollapsedWidth="0"/>
+                                    </Binding.Converter>
+                                </Binding>
+                            </Border.Width>
+
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Header -->
+                                <Border Grid.Row="0" 
+                                        Background="#161B22" 
+                                        Padding="12,10"
+                                        BorderBrush="#21262D"
+                                        BorderThickness="0,0,0,1">
+                                    <TextBlock Text="Market News" 
+                                               Foreground="#E6EDF3" 
+                                               FontWeight="SemiBold"
+                                               FontSize="13"/>
+                                </Border>
+
+                                <!-- Sentiment Summary -->
+                                <Border Grid.Row="1" 
+                                        Padding="12,8"
+                                        BorderBrush="#21262D"
+                                        BorderThickness="0,0,0,1">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Style="{StaticResource BullishBadgeStyle}">
+                                            <TextBlock Foreground="#26A69A" FontSize="11">
+                                                <Run Text="▲"/>
+                                                <Run Text="{Binding TotalBullishCount, RelativeSource={RelativeSource TemplatedParent}, FallbackValue=0}"/>
+                                            </TextBlock>
+                                        </Border>
+                                        <Border Style="{StaticResource BearishBadgeStyle}">
+                                            <TextBlock Foreground="#EF5350" FontSize="11">
+                                                <Run Text="▼"/>
+                                                <Run Text="{Binding TotalBearishCount, RelativeSource={RelativeSource TemplatedParent}, FallbackValue=0}"/>
+                                            </TextBlock>
+                                        </Border>
+                                        <Border Style="{StaticResource NeutralBadgeStyle}">
+                                            <TextBlock Foreground="#8B949E" FontSize="11">
+                                                <Run Text="●"/>
+                                                <Run Text="{Binding TotalNeutralCount, RelativeSource={RelativeSource TemplatedParent}, FallbackValue=0}"/>
+                                            </TextBlock>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- News List -->
+                                <ScrollViewer Grid.Row="2" 
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <ItemsControl ItemsSource="{TemplateBinding Articles}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource NewsItemStyle}">
+                                                    <StackPanel>
+                                                        <!-- Sentiment indicator + Time -->
+                                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                            <Ellipse Width="6" Height="6" Margin="0,0,6,0">
+                                                                <Ellipse.Style>
+                                                                    <Style TargetType="Ellipse">
+                                                                        <Setter Property="Fill" Value="#8B949E"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsBullish}" Value="True">
+                                                                                <Setter Property="Fill" Value="#26A69A"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding IsBearish}" Value="True">
+                                                                                <Setter Property="Fill" Value="#EF5350"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Ellipse.Style>
+                                                            </Ellipse>
+                                                            <TextBlock Text="{Binding PublishedAt, StringFormat='{}{0:MMM dd, HH:mm}'}" 
+                                                                       Style="{StaticResource NewsMetaStyle}"
+                                                                       Margin="0"/>
+                                                        </StackPanel>
+
+                                                        <!-- Headline -->
+                                                        <TextBlock Text="{Binding Headline}" 
+                                                                   Style="{StaticResource NewsHeadlineStyle}"/>
+
+                                                        <!-- Source -->
+                                                        <TextBlock Style="{StaticResource NewsMetaStyle}">
+                                                            <Run Text="{Binding Publisher, TargetNullValue='Unknown'}"/>
+                                                            <Run Text=" • "/>
+                                                            <Run Text="{Binding SentimentCategory}"/>
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+
+                                <!-- Empty State (shown when no articles) -->
+                                <!-- Note: Visibility managed by code-behind or could add HasArticles DP -->
+                                <TextBlock x:Name="EmptyStateText"
+                                           Grid.Row="2"
+                                           Text="No news for this period"
+                                           Foreground="#8B949E"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Visibility="Collapsed"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

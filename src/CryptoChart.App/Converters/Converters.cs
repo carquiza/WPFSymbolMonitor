@@ -92,3 +92,22 @@ public class InverseBoolConverter : IValueConverter
         return value is not true;
     }
 }
+
+/// <summary>
+/// Converts zero to Visibility (0 = Visible, > 0 = Collapsed).
+/// Used for showing empty state messages.
+/// </summary>
+public class ZeroToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is int intValue)
+            return intValue == 0 ? Visibility.Visible : Visibility.Collapsed;
+        return Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
