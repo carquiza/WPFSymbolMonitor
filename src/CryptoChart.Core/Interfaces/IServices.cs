@@ -95,3 +95,50 @@ public class ConnectionStatusEventArgs : EventArgs
     public string? Message { get; init; }
     public Exception? Error { get; init; }
 }
+
+/// <summary>
+/// Service interface for fetching news articles from external APIs.
+/// </summary>
+public interface INewsService
+{
+    /// <summary>
+    /// Gets the news source identifier for this service.
+    /// </summary>
+    Enums.NewsSource Source { get; }
+
+    /// <summary>
+    /// Fetches news articles for a cryptocurrency symbol within a date range.
+    /// </summary>
+    /// <param name="symbol">The cryptocurrency symbol (e.g., "BTC", "ETH").</param>
+    /// <param name="startTime">Start of the date range (UTC).</param>
+    /// <param name="endTime">End of the date range (UTC).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Collection of news articles.</returns>
+    Task<IEnumerable<Models.NewsArticle>> GetNewsAsync(
+        string symbol,
+        DateTime startTime,
+        DateTime endTime,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches the latest news articles for a cryptocurrency symbol.
+    /// </summary>
+    /// <param name="symbol">The cryptocurrency symbol (e.g., "BTC", "ETH").</param>
+    /// <param name="limit">Maximum number of articles to fetch.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Collection of news articles.</returns>
+    Task<IEnumerable<Models.NewsArticle>> GetLatestNewsAsync(
+        string symbol,
+        int limit = 50,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches general cryptocurrency news (not symbol-specific).
+    /// </summary>
+    /// <param name="limit">Maximum number of articles to fetch.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Collection of news articles.</returns>
+    Task<IEnumerable<Models.NewsArticle>> GetGeneralCryptoNewsAsync(
+        int limit = 50,
+        CancellationToken cancellationToken = default);
+}

@@ -97,3 +97,81 @@ public interface ICandleRepository
         TimeFrame timeFrame,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Repository interface for NewsArticle entities.
+/// </summary>
+public interface INewsRepository
+{
+    /// <summary>
+    /// Gets news articles for a symbol within a date range.
+    /// </summary>
+    Task<IEnumerable<Models.NewsArticle>> GetNewsAsync(
+        string symbol,
+        DateTime startTime,
+        DateTime endTime,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets news articles that fall within a candle's time period.
+    /// Useful for correlating news with specific candlesticks.
+    /// </summary>
+    Task<IEnumerable<Models.NewsArticle>> GetNewsForCandleAsync(
+        string symbol,
+        DateTime candleOpenTime,
+        DateTime candleCloseTime,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the most recent news articles for a symbol.
+    /// </summary>
+    Task<IEnumerable<Models.NewsArticle>> GetLatestNewsAsync(
+        string symbol,
+        int count,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the most recent news article for a symbol from a specific source.
+    /// </summary>
+    Task<Models.NewsArticle?> GetLatestAsync(
+        string symbol,
+        Enums.NewsSource source,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Adds a collection of news articles (bulk insert).
+    /// </summary>
+    Task AddRangeAsync(
+        IEnumerable<Models.NewsArticle> articles,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks if a news article already exists by its external ID and source.
+    /// </summary>
+    Task<bool> ExistsAsync(
+        string externalId,
+        Enums.NewsSource source,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all unique symbols that have news articles.
+    /// </summary>
+    Task<IEnumerable<string>> GetSymbolsWithNewsAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the count of news articles for a symbol.
+    /// </summary>
+    Task<int> GetCountAsync(
+        string symbol,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets news articles with a specific sentiment category.
+    /// </summary>
+    Task<IEnumerable<Models.NewsArticle>> GetBySentimentAsync(
+        string symbol,
+        bool? isBullish,
+        int limit,
+        CancellationToken cancellationToken = default);
+}

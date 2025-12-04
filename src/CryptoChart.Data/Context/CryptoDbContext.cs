@@ -15,6 +15,7 @@ public class CryptoDbContext : DbContext
 
     public DbSet<Symbol> Symbols => Set<Symbol>();
     public DbSet<Candle> Candles => Set<Candle>();
+    public DbSet<NewsArticle> NewsArticles => Set<NewsArticle>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -76,6 +77,69 @@ public class CryptoDbContext : DbContext
                 .WithMany(s => s.Candles)
                 .HasForeignKey(e => e.SymbolId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // NewsArticle configuration
+        modelBuilder.Entity<NewsArticle>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.ExternalId)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(e => e.Source)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            entity.Property(e => e.Symbol)
+                .IsRequired()
+                .HasMaxLength(20);
+
+            entity.Property(e => e.Headline)
+                .IsRequired()
+                .HasMaxLength(500);
+
+            entity.Property(e => e.Summary)
+                .HasMaxLength(2000);
+
+            entity.Property(e => e.Url)
+                .IsRequired()
+                .HasMaxLength(1000);
+
+            entity.Property(e => e.ImageUrl)
+                .HasMaxLength(1000);
+
+            entity.Property(e => e.Publisher)
+                .HasMaxLength(100);
+
+            entity.Property(e => e.SentimentLabel)
+                .HasMaxLength(50);
+
+            entity.Property(e => e.Category)
+                .HasMaxLength(50);
+
+            entity.Property(e => e.SentimentScore)
+                .HasPrecision(5, 4);
+
+            entity.Property(e => e.RelevanceScore)
+                .HasPrecision(5, 4);
+
+            // Unique constraint on ExternalId + Source to prevent duplicates
+            entity.HasIndex(e => new { e.ExternalId, e.Source })
+                .IsUnique();
+
+            // Index for querying by symbol and date range
+            entity.HasIndex(e => new { e.Symbol, e.PublishedAt });
+
+            // Index for time-based queries
+            entity.HasIndex(e => e.PublishedAt);
+
+            // Ignore computed properties
+            entity.Ignore(e => e.IsBullish);
+            entity.Ignore(e => e.IsBearish);
+            entity.Ignore(e => e.IsNeutral);
+            entity.Ignore(e => e.SentimentCategory);
         });
     }
 }
