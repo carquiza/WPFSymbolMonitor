@@ -5,19 +5,20 @@
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
         <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Themes/Colors.xaml"/>
-                <ResourceDictionary Source="Themes/Controls.xaml"/>
-                <ResourceDictionary Source="Themes/NewsStyles.xaml"/>
-            </ResourceDictionary.MergedDictionaries>
-
-            <!-- Converters -->
+            <!-- Converters - Must be defined BEFORE merged dictionaries that use them -->
             <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
             <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
             <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
             <converters:EnumBoolConverter x:Key="EnumBoolConverter"/>
             <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
             <converters:ZeroToVisibilityConverter x:Key="ZeroToVisibilityConverter"/>
+            <converters:BoolToWidthConverter x:Key="BoolToWidthConverter" ExpandedWidth="280" CollapsedWidth="0"/>
+
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Colors.xaml"/>
+                <ResourceDictionary Source="Themes/Controls.xaml"/>
+                <ResourceDictionary Source="Themes/NewsStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

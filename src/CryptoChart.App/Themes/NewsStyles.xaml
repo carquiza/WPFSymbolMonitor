@@ -2,7 +2,12 @@
 <!-- Styles for news panel and sentiment display -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:controls="clr-namespace:CryptoChart.App.Controls">
+                    xmlns:controls="clr-namespace:CryptoChart.App.Controls"
+                    xmlns:converters="clr-namespace:CryptoChart.App.Converters">
+
+    <!-- Local converter instances for this resource dictionary -->
+    <converters:BoolToWidthConverter x:Key="BoolToWidthConverter" ExpandedWidth="280" CollapsedWidth="0"/>
+    <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
 
     <!-- Sentiment Badge Style -->
     <Style x:Key="SentimentBadgeStyle" TargetType="Border">
@@ -126,14 +131,8 @@
                         <Border Grid.Column="1"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}">
-                            <Border.Width>
-                                <Binding Path="IsExpanded" RelativeSource="{RelativeSource TemplatedParent}">
-                                    <Binding.Converter>
-                                        <controls:BoolToWidthConverter ExpandedWidth="280" CollapsedWidth="0"/>
-                                    </Binding.Converter>
-                                </Binding>
-                            </Border.Width>
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Width="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToWidthConverter}}">
 
                             <Grid>
                                 <Grid.RowDefinitions>

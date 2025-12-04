@@ -111,3 +111,23 @@ public class ZeroToVisibilityConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
+
+/// <summary>
+/// Converts boolean to width value (true = ExpandedWidth, false = CollapsedWidth).
+/// Used for animating panel expansion.
+/// </summary>
+public class BoolToWidthConverter : IValueConverter
+{
+    public double ExpandedWidth { get; set; } = 280;
+    public double CollapsedWidth { get; set; } = 0;
+
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return value is true ? ExpandedWidth : CollapsedWidth;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
