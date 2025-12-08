@@ -8,6 +8,8 @@ namespace CryptoChart.Data.Repositories;
 
 /// <summary>
 /// Repository for managing NewsArticle entities.
+/// Uses ConfigureAwait(false) throughout to avoid capturing sync context
+/// and improve performance in library code.
 /// </summary>
 public class NewsRepository : INewsRepository
 {
@@ -29,7 +31,8 @@ public class NewsRepository : INewsRepository
                         n.PublishedAt >= startTime &&
                         n.PublishedAt <= endTime)
             .OrderByDescending(n => n.PublishedAt)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<NewsArticle>> GetNewsForCandleAsync(
@@ -43,7 +46,8 @@ public class NewsRepository : INewsRepository
                         n.PublishedAt >= candleOpenTime &&
                         n.PublishedAt < candleCloseTime)
             .OrderByDescending(n => n.PublishedAt)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<NewsArticle>> GetLatestNewsAsync(
@@ -55,7 +59,8 @@ public class NewsRepository : INewsRepository
             .Where(n => n.Symbol == symbol)
             .OrderByDescending(n => n.PublishedAt)
             .Take(count)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<NewsArticle?> GetLatestAsync(
@@ -66,7 +71,8 @@ public class NewsRepository : INewsRepository
         return await _context.NewsArticles
             .Where(n => n.Symbol == symbol && n.Source == source)
             .OrderByDescending(n => n.PublishedAt)
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task AddRangeAsync(
@@ -81,7 +87,8 @@ public class NewsRepository : INewsRepository
         var existingIds = await _context.NewsArticles
             .Where(n => articleList.Select(a => a.ExternalId).Contains(n.ExternalId))
             .Select(n => new { n.ExternalId, n.Source })
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         var existingSet = existingIds
             .Select(e => $"{e.ExternalId}:{e.Source}")
@@ -93,8 +100,8 @@ public class NewsRepository : INewsRepository
 
         if (newArticles.Any())
         {
-            await _context.NewsArticles.AddRangeAsync(newArticles, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
+            await _context.NewsArticles.AddRangeAsync(newArticles, cancellationToken).ConfigureAwait(false);
+            await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -105,7 +112,8 @@ public class NewsRepository : INewsRepository
     {
         return await _context.NewsArticles
             .AnyAsync(n => n.ExternalId == externalId && n.Source == source, 
-                cancellationToken);
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<string>> GetSymbolsWithNewsAsync(
@@ -114,7 +122,8 @@ public class NewsRepository : INewsRepository
         return await _context.NewsArticles
             .Select(n => n.Symbol)
             .Distinct()
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<int> GetCountAsync(
@@ -122,7 +131,8 @@ public class NewsRepository : INewsRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.NewsArticles
-            .CountAsync(n => n.Symbol == symbol, cancellationToken);
+            .CountAsync(n => n.Symbol == symbol, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<NewsArticle>> GetBySentimentAsync(
@@ -156,6 +166,7 @@ public class NewsRepository : INewsRepository
         return await query
             .OrderByDescending(n => n.PublishedAt)
             .Take(limit)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 }

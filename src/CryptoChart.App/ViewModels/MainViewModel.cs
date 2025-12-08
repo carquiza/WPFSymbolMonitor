@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CryptoChart.App.Infrastructure;
 using CryptoChart.Core.Enums;
 using CryptoChart.Core.Interfaces;
 using CryptoChart.Core.Models;
@@ -11,6 +12,12 @@ namespace CryptoChart.App.ViewModels;
 /// <summary>
 /// Main ViewModel for the application.
 /// Manages symbol selection, timeframe, and coordinates data loading.
+/// 
+/// Threading model:
+/// - All public methods are safe to call from UI thread
+/// - Uses CancellationManager to cancel stale requests when selection changes rapidly
+/// - Uses AsyncDebouncer for hover events to prevent excessive lookups
+/// - Real-time updates use BeginInvoke for non-blocking UI updates
 /// </summary>
 public partial class MainViewModel : ObservableObject, IAsyncDisposable
 {
@@ -19,6 +26,13 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     private readonly INewsRepository _newsRepository;
     private readonly IMarketDataService _marketDataService;
     private readonly IRealtimeMarketService _realtimeService;
+
+    // Cancellation manager for data loading - cancels previous load when new selection made
+    private readonly CancellationManager _loadCancellation = new();
+    
+    // Debouncer for hover events - prevents excessive lookups during rapid mouse movement
+    // Currently hover uses in-memory data, but this enables future DB-backed lookups
+    private readonly AsyncDebouncer _hoverDebouncer;
 
     public MainViewModel(
         ISymbolRepository symbolRepository,
@@ -42,6 +56,12 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
         // Subscribe to visible range changes for sentiment sync
         ChartViewModel.VisibleRangeChanged += OnVisibleRangeChanged;
+
+        // Initialize hover debouncer with 50ms delay - responsive but prevents spam
+        // Uses the dispatcher to ensure UI updates happen on main thread
+        _hoverDebouncer = new AsyncDebouncer(
+            delayMilliseconds: 50,
+            dispatcher: System.Windows.Application.Current.Dispatcher);
     }
 
     #region Properties
@@ -111,13 +131,22 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         try
         {
-            var symbols = await _symbolRepository.GetActiveAsync();
+            var ct = _loadCancellation.GetToken();
+            var symbols = await _symbolRepository.GetActiveAsync(ct);
+            
+            // Check if cancelled before updating UI
+            if (ct.IsCancellationRequested) return;
+            
             Symbols = new ObservableCollection<Symbol>(symbols);
 
             if (Symbols.Count > 0 && SelectedSymbol == null)
             {
                 SelectedSymbol = Symbols.First();
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when user changes selection - ignore
         }
         catch (Exception ex)
         {
@@ -161,6 +190,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         if (SelectedSymbol == null)
             return;
 
+        // Get a fresh cancellation token - this cancels any previous load operation
+        var ct = _loadCancellation.GetToken();
+
         IsLoading = true;
         ErrorMessage = null;
 
@@ -169,13 +201,20 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             // Unsubscribe from previous symbol
             await _realtimeService.UnsubscribeAllAsync();
 
+            // Check cancellation before expensive DB call
+            ct.ThrowIfCancellationRequested();
+
             // Try to load from database first
             var dbCandles = await _candleRepository.GetLatestCandlesAsync(
                 SelectedSymbol.Id,
                 SelectedTimeFrame,
-                500);
+                500,
+                ct);
 
             var candleList = dbCandles.ToList();
+
+            // Check cancellation after DB call
+            ct.ThrowIfCancellationRequested();
 
             // If no data in DB, fetch from API
             if (candleList.Count == 0)
@@ -187,13 +226,17 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
                 candleList = apiCandles.ToList();
 
+                ct.ThrowIfCancellationRequested();
+
                 // Store in database for future use
                 foreach (var candle in candleList)
                 {
                     candle.SymbolId = SelectedSymbol.Id;
                 }
-                await _candleRepository.AddRangeAsync(candleList);
+                await _candleRepository.AddRangeAsync(candleList, ct);
             }
+
+            ct.ThrowIfCancellationRequested();
 
             // Update chart
             ChartViewModel.UpdateCandles(candleList);
@@ -212,22 +255,37 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             }
 
             // Load news data if repository is available
-            await LoadNewsAsync(candleList);
+            await LoadNewsAsync(candleList, ct);
+
+            ct.ThrowIfCancellationRequested();
 
             // Subscribe to real-time updates
             await _realtimeService.SubscribeAsync(SelectedSymbol.Name, SelectedTimeFrame);
         }
+        catch (OperationCanceledException)
+        {
+            // Expected when user changes selection rapidly - ignore
+            System.Diagnostics.Debug.WriteLine("Load cancelled - user changed selection");
+        }
         catch (Exception ex)
         {
-            ErrorMessage = $"Failed to load data: {ex.Message}";
+            // Only show error if this wasn't cancelled
+            if (!ct.IsCancellationRequested)
+            {
+                ErrorMessage = $"Failed to load data: {ex.Message}";
+            }
         }
         finally
         {
-            IsLoading = false;
+            // Only clear loading if this is still the active operation
+            if (!ct.IsCancellationRequested)
+            {
+                IsLoading = false;
+            }
         }
     }
 
-    private async Task LoadNewsAsync(List<Candle> candles)
+    private async Task LoadNewsAsync(List<Candle> candles, CancellationToken ct)
     {
         if (SelectedSymbol == null || candles.Count == 0)
             return;
@@ -243,11 +301,16 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             
             System.Diagnostics.Debug.WriteLine($"Loading news for {baseAsset} from {startTime} to {endTime}");
 
+            ct.ThrowIfCancellationRequested();
+
             // Load news for this symbol and time range
             var articles = await _newsRepository.GetNewsAsync(
                 baseAsset, 
                 startTime, 
-                endTime);
+                endTime,
+                ct);
+
+            ct.ThrowIfCancellationRequested();
 
             var articleList = articles.ToList();
             System.Diagnostics.Debug.WriteLine($"Found {articleList.Count} news articles for {baseAsset}");
@@ -259,6 +322,11 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             NewsViewModel.CalculateSentiments(candles);
             
             // The visible range will be updated via the VisibleRangeChanged event
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected - rethrow so caller handles it
+            throw;
         }
         catch (Exception ex)
         {
@@ -287,18 +355,29 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     /// <summary>
     /// Called by MainWindow when a candle is hovered.
-    /// Updates both chart and news view models.
+    /// Uses debouncing to prevent excessive updates during rapid mouse movement.
+    /// Currently updates in-memory data; infrastructure supports future DB lookups.
     /// </summary>
     public void OnCandleHovered(int candleIndex)
     {
-        ChartViewModel.SetHoveredCandle(candleIndex);
+        // Use debouncer for future DB-backed lookups
+        // For now, the actual update is fast (in-memory), but this demonstrates
+        // the pattern for when you add features like fetching detailed article content
+        _hoverDebouncer.Trigger(candleIndex, (index, ct) =>
+        {
+            if (ct.IsCancellationRequested) return Task.CompletedTask;
 
-        // Pass the actual candle to NewsViewModel for article filtering
-        var hoveredCandle = candleIndex >= 0 && candleIndex < ChartViewModel.VisibleCandles.Count
-            ? ChartViewModel.VisibleCandles[candleIndex]
-            : null;
+            ChartViewModel.SetHoveredCandle(index);
 
-        NewsViewModel.SetHighlightedIndex(candleIndex, hoveredCandle);
+            // Pass the actual candle to NewsViewModel for article filtering
+            var hoveredCandle = index >= 0 && index < ChartViewModel.VisibleCandles.Count
+                ? ChartViewModel.VisibleCandles[index]
+                : null;
+
+            NewsViewModel.SetHighlightedIndex(index, hoveredCandle);
+
+            return Task.CompletedTask;
+        });
     }
 
     /// <summary>
@@ -307,6 +386,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     /// </summary>
     public void OnCandleHoverCleared()
     {
+        // Cancel any pending hover operation
+        _hoverDebouncer.Cancel();
+        
         ChartViewModel.ClearHover();
         NewsViewModel.ClearHighlight();
     }
@@ -320,8 +402,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         if (SelectedSymbol == null || e.Symbol != SelectedSymbol.Name)
             return;
 
-        // Update on UI thread
-        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+        // Use BeginInvoke for non-blocking UI updates
+        // This is critical for responsive UI - Invoke blocks the calling thread
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
         {
             ChartViewModel.UpdateLatestCandle(e.Candle, e.IsClosed);
 
@@ -337,7 +420,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private void OnConnectionStatusChanged(object? sender, ConnectionStatusEventArgs e)
     {
-        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+        // Use BeginInvoke for non-blocking UI updates
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
         {
             IsConnected = e.IsConnected;
             ConnectionStatus = e.Message ?? (e.IsConnected ? "Connected" : "Disconnected");
@@ -379,10 +463,21 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        // Cancel any pending operations
+        _loadCancellation.Cancel();
+        _hoverDebouncer.Cancel();
+
+        // Unsubscribe from events
         _realtimeService.CandleUpdated -= OnCandleUpdated;
         _realtimeService.ConnectionStatusChanged -= OnConnectionStatusChanged;
         ChartViewModel.VisibleRangeChanged -= OnVisibleRangeChanged;
+
+        // Clean up realtime service
         await _realtimeService.UnsubscribeAllAsync();
+
+        // Dispose infrastructure
+        _loadCancellation.Dispose();
+        _hoverDebouncer.Dispose();
     }
 
     #endregion

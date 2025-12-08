@@ -8,6 +8,8 @@ namespace CryptoChart.Data.Repositories;
 
 /// <summary>
 /// Repository implementation for Candle entities.
+/// Uses ConfigureAwait(false) throughout to avoid capturing sync context
+/// and improve performance in library code.
 /// </summary>
 public class CandleRepository : ICandleRepository
 {
@@ -32,7 +34,8 @@ public class CandleRepository : ICandleRepository
                 && c.OpenTime >= startTime 
                 && c.OpenTime <= endTime)
             .OrderBy(c => c.OpenTime)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<Candle>> GetLatestCandlesAsync(
@@ -46,7 +49,8 @@ public class CandleRepository : ICandleRepository
             .Where(c => c.SymbolId == symbolId && c.TimeFrame == timeFrame)
             .OrderByDescending(c => c.OpenTime)
             .Take(count)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         // Return in chronological order
         return candles.OrderBy(c => c.OpenTime);
@@ -61,7 +65,8 @@ public class CandleRepository : ICandleRepository
             .AsNoTracking()
             .Where(c => c.SymbolId == symbolId && c.TimeFrame == timeFrame)
             .OrderByDescending(c => c.OpenTime)
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<Candle?> GetOldestCandleAsync(
@@ -73,7 +78,8 @@ public class CandleRepository : ICandleRepository
             .AsNoTracking()
             .Where(c => c.SymbolId == symbolId && c.TimeFrame == timeFrame)
             .OrderBy(c => c.OpenTime)
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task AddRangeAsync(IEnumerable<Candle> candles, CancellationToken cancellationToken = default)
@@ -82,8 +88,8 @@ public class CandleRepository : ICandleRepository
         if (candleList.Count == 0) return;
 
         // Use bulk insert for better performance
-        await _context.Candles.AddRangeAsync(candleList, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.Candles.AddRangeAsync(candleList, cancellationToken).ConfigureAwait(false);
+        await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task UpsertAsync(Candle candle, CancellationToken cancellationToken = default)
@@ -93,7 +99,8 @@ public class CandleRepository : ICandleRepository
                 c.SymbolId == candle.SymbolId 
                 && c.TimeFrame == candle.TimeFrame 
                 && c.OpenTime == candle.OpenTime, 
-                cancellationToken);
+                cancellationToken)
+            .ConfigureAwait(false);
 
         if (existing != null)
         {
@@ -110,10 +117,10 @@ public class CandleRepository : ICandleRepository
         else
         {
             // Add new candle
-            await _context.Candles.AddAsync(candle, cancellationToken);
+            await _context.Candles.AddAsync(candle, cancellationToken).ConfigureAwait(false);
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<int> GetCountAsync(
@@ -122,6 +129,7 @@ public class CandleRepository : ICandleRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.Candles
-            .CountAsync(c => c.SymbolId == symbolId && c.TimeFrame == timeFrame, cancellationToken);
+            .CountAsync(c => c.SymbolId == symbolId && c.TimeFrame == timeFrame, cancellationToken)
+            .ConfigureAwait(false);
     }
 }
