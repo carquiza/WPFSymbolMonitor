@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using CryptoChart.App.Infrastructure;
 using CryptoChart.App.ViewModels;
 using CryptoChart.App.Views;
 using CryptoChart.Core.Interfaces;
@@ -49,6 +50,10 @@ public partial class App : Application
 
         // Realtime service (singleton for WebSocket connection)
         services.AddSingleton<IRealtimeMarketService, BinanceRealtimeService>();
+
+        // Rx.Net Infrastructure
+        services.AddSingleton<ISchedulerProvider, SchedulerProvider>();
+        services.AddSingleton<CandleHoverStream>();
 
         // ViewModels
         services.AddTransient<MainViewModel>();
