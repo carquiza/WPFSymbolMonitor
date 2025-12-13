@@ -24,7 +24,10 @@ public partial class MainWindow : Window
 
         // Subscribe to throttled hover updates for news panel only
         // This fires at most every 50ms instead of every mouse move (60+ times/sec)
-        _hoverSubscription = _hoverStream.Subscribe(OnThrottledHoverForNews);
+        _hoverSubscription = _hoverStream.Subscribe(
+            OnThrottledHoverForNews,
+            ex => System.Diagnostics.Debug.WriteLine($"Hover stream error: {ex.Message}"),
+            () => { });
 
         Loaded += OnWindowLoaded;
         Closing += OnWindowClosing;
