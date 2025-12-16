@@ -4,12 +4,13 @@ using CryptoChart.Core.Models;
 using CryptoChart.Data.Context;
 using Microsoft.EntityFrameworkCore;
 
+// Note: This is duplicated from Services to avoid a dependency issue.
+// News articles are stored with base asset symbols (BTC, ETH) not trading pairs (BTCUSDT).
+
 namespace CryptoChart.Data.Repositories;
 
 /// <summary>
 /// Repository for managing NewsArticle entities.
-/// Uses ConfigureAwait(false) throughout to avoid capturing sync context
-/// and improve performance in library code.
 /// </summary>
 public class NewsRepository : INewsRepository
 {
@@ -26,13 +27,16 @@ public class NewsRepository : INewsRepository
         DateTime endTime,
         CancellationToken cancellationToken = default)
     {
+        // Convert trading pair (BTCUSDT) to base asset (BTC) for querying
+        // News articles are stored with base asset symbols
+        var baseAsset = GetBaseAsset(symbol);
+        
         return await _context.NewsArticles
-            .Where(n => n.Symbol == symbol &&
+            .Where(n => n.Symbol == baseAsset &&
                         n.PublishedAt >= startTime &&
                         n.PublishedAt <= endTime)
             .OrderByDescending(n => n.PublishedAt)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<IEnumerable<NewsArticle>> GetNewsForCandleAsync(
@@ -41,13 +45,14 @@ public class NewsRepository : INewsRepository
         DateTime candleCloseTime,
         CancellationToken cancellationToken = default)
     {
+        var baseAsset = GetBaseAsset(symbol);
+        
         return await _context.NewsArticles
-            .Where(n => n.Symbol == symbol &&
+            .Where(n => n.Symbol == baseAsset &&
                         n.PublishedAt >= candleOpenTime &&
                         n.PublishedAt < candleCloseTime)
             .OrderByDescending(n => n.PublishedAt)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<IEnumerable<NewsArticle>> GetLatestNewsAsync(
@@ -55,12 +60,13 @@ public class NewsRepository : INewsRepository
         int count,
         CancellationToken cancellationToken = default)
     {
+        var baseAsset = GetBaseAsset(symbol);
+        
         return await _context.NewsArticles
-            .Where(n => n.Symbol == symbol)
+            .Where(n => n.Symbol == baseAsset)
             .OrderByDescending(n => n.PublishedAt)
             .Take(count)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<NewsArticle?> GetLatestAsync(
@@ -68,11 +74,12 @@ public class NewsRepository : INewsRepository
         NewsSource source,
         CancellationToken cancellationToken = default)
     {
+        var baseAsset = GetBaseAsset(symbol);
+        
         return await _context.NewsArticles
-            .Where(n => n.Symbol == symbol && n.Source == source)
+            .Where(n => n.Symbol == baseAsset && n.Source == source)
             .OrderByDescending(n => n.PublishedAt)
-            .FirstOrDefaultAsync(cancellationToken)
-            .ConfigureAwait(false);
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task AddRangeAsync(
@@ -87,8 +94,7 @@ public class NewsRepository : INewsRepository
         var existingIds = await _context.NewsArticles
             .Where(n => articleList.Select(a => a.ExternalId).Contains(n.ExternalId))
             .Select(n => new { n.ExternalId, n.Source })
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            .ToListAsync(cancellationToken);
 
         var existingSet = existingIds
             .Select(e => $"{e.ExternalId}:{e.Source}")
@@ -100,8 +106,8 @@ public class NewsRepository : INewsRepository
 
         if (newArticles.Any())
         {
-            await _context.NewsArticles.AddRangeAsync(newArticles, cancellationToken).ConfigureAwait(false);
-            await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _context.NewsArticles.AddRangeAsync(newArticles, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
         }
     }
 
@@ -112,8 +118,7 @@ public class NewsRepository : INewsRepository
     {
         return await _context.NewsArticles
             .AnyAsync(n => n.ExternalId == externalId && n.Source == source, 
-                cancellationToken)
-            .ConfigureAwait(false);
+                cancellationToken);
     }
 
     public async Task<IEnumerable<string>> GetSymbolsWithNewsAsync(
@@ -122,17 +127,17 @@ public class NewsRepository : INewsRepository
         return await _context.NewsArticles
             .Select(n => n.Symbol)
             .Distinct()
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<int> GetCountAsync(
         string symbol,
         CancellationToken cancellationToken = default)
     {
+        var baseAsset = GetBaseAsset(symbol);
+        
         return await _context.NewsArticles
-            .CountAsync(n => n.Symbol == symbol, cancellationToken)
-            .ConfigureAwait(false);
+            .CountAsync(n => n.Symbol == baseAsset, cancellationToken);
     }
 
     public async Task<IEnumerable<NewsArticle>> GetBySentimentAsync(
@@ -141,8 +146,10 @@ public class NewsRepository : INewsRepository
         int limit,
         CancellationToken cancellationToken = default)
     {
+        var baseAsset = GetBaseAsset(symbol);
+        
         var query = _context.NewsArticles
-            .Where(n => n.Symbol == symbol && n.SentimentScore.HasValue);
+            .Where(n => n.Symbol == baseAsset && n.SentimentScore.HasValue);
 
         if (isBullish.HasValue)
         {
@@ -166,7 +173,37 @@ public class NewsRepository : INewsRepository
         return await query
             .OrderByDescending(n => n.PublishedAt)
             .Take(limit)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            .ToListAsync(cancellationToken);
     }
+
+    #region Helpers
+
+    /// <summary>
+    /// Extracts the base asset from a trading pair symbol.
+    /// For example, "BTCUSDT" -> "BTC", "ETHBTC" -> "ETH".
+    /// This is needed because news articles are stored with base asset symbols.
+    /// </summary>
+    private static string GetBaseAsset(string symbol)
+    {
+        if (string.IsNullOrWhiteSpace(symbol))
+            return symbol;
+
+        symbol = symbol.ToUpperInvariant();
+
+        // Handle common quote currencies
+        if (symbol.EndsWith("USDT"))
+            return symbol[..^4];
+        if (symbol.EndsWith("BUSD"))
+            return symbol[..^4];
+        if (symbol.EndsWith("USDC"))
+            return symbol[..^4];
+        if (symbol.EndsWith("BTC") && symbol.Length > 3)
+            return symbol[..^3];
+        if (symbol.EndsWith("ETH") && symbol.Length > 3)
+            return symbol[..^3];
+
+        return symbol;
+    }
+
+    #endregion
 }
