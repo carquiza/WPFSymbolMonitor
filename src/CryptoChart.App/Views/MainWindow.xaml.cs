@@ -81,4 +81,17 @@ public partial class MainWindow : Window
         // Only update news panel here - this was the expensive operation
         ViewModel.NewsViewModel?.SetHighlightedIndex(candleIndex);
     }
+
+    /// <summary>
+    /// Handle mouse leaving the chart area.
+    /// Clears hover state from both chart and news panel.
+    /// </summary>
+    private void OnChartMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        // Clear chart tooltip
+        ViewModel.ChartViewModel.SetHoveredCandle(-1);
+
+        // Clear news panel highlight
+        _hoverStream.OnHover(-1);
+    }
 }
