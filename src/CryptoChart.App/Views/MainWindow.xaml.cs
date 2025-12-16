@@ -79,7 +79,9 @@ public partial class MainWindow : Window
     private void OnThrottledHoverForNews(int candleIndex)
     {
         // Only update news panel here - this was the expensive operation
-        ViewModel.NewsViewModel?.SetHighlightedIndex(candleIndex);
+        // Pass the actual candle so news can filter to that candle's time period
+        var candle = candleIndex >= 0 ? ViewModel.ChartViewModel.HoveredCandle : null;
+        ViewModel.NewsViewModel?.SetHighlightedIndex(candleIndex, candle);
     }
 
     /// <summary>
