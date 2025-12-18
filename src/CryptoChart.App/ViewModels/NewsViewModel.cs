@@ -265,8 +265,7 @@ public partial class NewsViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Sets the highlighted index and updates related properties.
-    /// When a candle is pinned (clicked), news panel stays on that candle.
-    /// Only updates news panel during hover if no candle is pinned.
+    /// Always updates news panel on hover - pinned candle is only used when mouse leaves chart.
     /// </summary>
     public void SetHighlightedIndex(int index, Candle? candle = null)
     {
@@ -274,17 +273,14 @@ public partial class NewsViewModel : ObservableObject, IDisposable
         HighlightedIndex = index;
         HoveredSentiment = GetSentimentAtIndex(index);
 
-        // If a candle is pinned, don't update the news panel - keep showing pinned candle's news
-        if (HasPinnedCandle)
-        {
-            return;
-        }
-
-        // No pinned candle - update news panel based on hover
+        // Update news panel based on hover (pinned candle is fallback when mouse leaves)
         if (candle != null && index >= 0)
         {
             IsShowingCandleSelection = true;
-            SelectionHeaderText = $"News for {candle.OpenTime:MMM dd, HH:mm}";
+            // Show different header if this is the pinned candle vs just hovering
+            SelectionHeaderText = (_pinnedCandle != null && candle.OpenTime == _pinnedCandle.OpenTime)
+                ? $"📌 News for {candle.OpenTime:MMM dd, HH:mm}"
+                : $"News for {candle.OpenTime:MMM dd, HH:mm}";
             
             // Fire-and-forget: offload filtering to background thread
             // Cancellation handled internally - new calls cancel previous
@@ -292,7 +288,8 @@ public partial class NewsViewModel : ObservableObject, IDisposable
         }
         else if (index < 0)
         {
-            ClearCandleSelection();
+            // Mouse left chart - revert to pinned candle if one exists
+            RevertToSelectedCandle();
         }
     }
 
