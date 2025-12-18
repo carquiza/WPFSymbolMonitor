@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CryptoChart.App.Infrastructure;
 using CryptoChart.Core.Interfaces;
 using CryptoChart.Core.Models;
 
@@ -9,11 +11,13 @@ namespace CryptoChart.App.ViewModels;
 /// ViewModel for managing news data and sentiment aggregation.
 /// Provides synchronized news and sentiment data for the chart.
 /// </summary>
-public partial class NewsViewModel : ObservableObject
+public partial class NewsViewModel : ObservableObject, IDisposable
 {
+    private bool _disposed;
     private readonly List<NewsArticle> _allArticles = new();
     private readonly List<CandleSentiment> _allSentiments = new();
     private readonly object _articlesLock = new();
+    private readonly CancellationManager _articleFilterCancellation = new();
 
     public NewsViewModel()
     {
@@ -193,11 +197,8 @@ public partial class NewsViewModel : ObservableObject
                 .OrderByDescending(a => a.PublishedAt)
                 .ToList();
 
-            VisibleArticles.Clear();
-            foreach (var article in visible)
-            {
-                VisibleArticles.Add(article);
-            }
+            // Batch update: single property change instead of Clear + N Adds
+            VisibleArticles = new ObservableCollection<NewsArticle>(visible);
         }
         
         // Notify that DisplayedArticles may have changed
@@ -213,7 +214,7 @@ public partial class NewsViewModel : ObservableObject
         {
             if (_allSentiments.Count == 0)
             {
-                Sentiments.Clear();
+                Sentiments = new ObservableCollection<CandleSentiment>();
                 return;
             }
 
@@ -222,14 +223,10 @@ public partial class NewsViewModel : ObservableObject
 
             var visibleSentiments = _allSentiments
                 .Skip(startIndex)
-                .Take(endIndex - startIndex)
-                .ToList();
+                .Take(endIndex - startIndex);
 
-            Sentiments.Clear();
-            foreach (var sentiment in visibleSentiments)
-            {
-                Sentiments.Add(sentiment);
-            }
+            // Batch update: single property change instead of Clear + N Adds
+            Sentiments = new ObservableCollection<CandleSentiment>(visibleSentiments);
         }
     }
 
@@ -271,21 +268,73 @@ public partial class NewsViewModel : ObservableObject
         // Update selected candle articles if candle provided
         if (candle != null && index >= 0)
         {
-            var articles = GetArticlesForCandle(candle);
-            SelectedCandleArticles.Clear();
-            foreach (var article in articles)
-            {
-                SelectedCandleArticles.Add(article);
-            }
             IsShowingCandleSelection = true;
             SelectionHeaderText = $"News for {candle.OpenTime:MMM dd, HH:mm}";
             
-            // Force notify DisplayedArticles since we populated SelectedCandleArticles
-            OnPropertyChanged(nameof(DisplayedArticles));
+            // Fire-and-forget: offload filtering to background thread
+            // Cancellation handled internally - new calls cancel previous
+            _ = UpdateSelectedCandleArticlesAsync(candle);
         }
         else if (index < 0)
         {
             ClearCandleSelection();
+        }
+    }
+
+    /// <summary>
+    /// Offloads article filtering to a background thread to prevent UI stalls.
+    /// Creates the ObservableCollection off-thread (constructor doesn't raise events),
+    /// then marshals the assignment to the UI thread.
+    /// </summary>
+    private async Task UpdateSelectedCandleArticlesAsync(Candle candle)
+    {
+        // Get token - cancels any previous in-flight filter operation
+        var ct = _articleFilterCancellation.GetToken();
+
+        try
+        {
+            // Capture candle times for closure (avoid capturing entire candle)
+            var openTime = candle.OpenTime;
+            var closeTime = candle.CloseTime;
+
+            // Do expensive work on background thread:
+            // - Lock acquisition and list filtering
+            // - LINQ operations
+            // - ObservableCollection construction (iterates all items)
+            var newCollection = await Task.Run(() =>
+            {
+                ct.ThrowIfCancellationRequested();
+
+                List<NewsArticle> filtered;
+                lock (_articlesLock)
+                {
+                    filtered = _allArticles
+                        .Where(a => a.PublishedAt >= openTime && a.PublishedAt < closeTime)
+                        .OrderByDescending(a => a.PublishedAt)
+                        .ToList();
+                }
+
+                ct.ThrowIfCancellationRequested();
+
+                // Create collection off-thread - constructor just copies, no events raised
+                return new ObservableCollection<NewsArticle>(filtered);
+            }, ct).ConfigureAwait(false);
+
+            ct.ThrowIfCancellationRequested();
+
+            // Marshal the assignment to UI thread
+            // BeginInvoke is non-blocking, won't stall if UI is busy
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                if (ct.IsCancellationRequested) return;
+
+                SelectedCandleArticles = newCollection;
+                OnPropertyChanged(nameof(DisplayedArticles));
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when a new hover cancels this operation - silently ignore
         }
     }
 
@@ -302,7 +351,7 @@ public partial class NewsViewModel : ObservableObject
 
     private void ClearCandleSelection()
     {
-        SelectedCandleArticles.Clear();
+        SelectedCandleArticles = new ObservableCollection<NewsArticle>();
         IsShowingCandleSelection = false;
         SelectionHeaderText = "Market News";
         
@@ -331,6 +380,17 @@ public partial class NewsViewModel : ObservableObject
     public void TogglePanel()
     {
         IsPanelExpanded = !IsPanelExpanded;
+    }
+
+    #endregion
+
+    #region IDisposable
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _articleFilterCancellation.Dispose();
     }
 
     #endregion

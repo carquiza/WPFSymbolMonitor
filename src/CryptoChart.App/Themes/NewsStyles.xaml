@@ -200,53 +200,74 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- News List -->
-                                <ScrollViewer Grid.Row="2" 
-                                              VerticalScrollBarVisibility="Auto"
-                                              HorizontalScrollBarVisibility="Disabled">
-                                    <ItemsControl ItemsSource="{TemplateBinding Articles}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Style="{StaticResource NewsItemStyle}">
-                                                    <StackPanel>
-                                                        <!-- Sentiment indicator + Time -->
-                                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                                            <Ellipse Width="6" Height="6" Margin="0,0,6,0">
-                                                                <Ellipse.Style>
-                                                                    <Style TargetType="Ellipse">
-                                                                        <Setter Property="Fill" Value="#8B949E"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding IsBullish}" Value="True">
-                                                                                <Setter Property="Fill" Value="#26A69A"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding IsBearish}" Value="True">
-                                                                                <Setter Property="Fill" Value="#EF5350"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </Ellipse.Style>
-                                                            </Ellipse>
-                                                            <TextBlock Text="{Binding PublishedAt, StringFormat='{}{0:MMM dd, HH:mm}'}" 
-                                                                       Style="{StaticResource NewsMetaStyle}"
-                                                                       Margin="0"/>
-                                                        </StackPanel>
-
-                                                        <!-- Headline -->
-                                                        <TextBlock Text="{Binding Headline}" 
-                                                                   Style="{StaticResource NewsHeadlineStyle}"/>
-
-                                                        <!-- Source -->
-                                                        <TextBlock Style="{StaticResource NewsMetaStyle}">
-                                                            <Run Text="{Binding Publisher, Mode=OneWay, TargetNullValue='Unknown'}"/>
-                                                            <Run Text=" • "/>
-                                                            <Run Text="{Binding SentimentCategory, Mode=OneWay}"/>
-                                                        </TextBlock>
+                                <!-- News List - Virtualized for performance with large datasets -->
+                                <ListBox Grid.Row="2" 
+                                         ItemsSource="{TemplateBinding Articles}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                         VirtualizingPanel.IsVirtualizing="True"
+                                         VirtualizingPanel.VirtualizationMode="Recycling"
+                                         VirtualizingPanel.ScrollUnit="Pixel"
+                                         ScrollViewer.IsDeferredScrollingEnabled="True">
+                                    <ListBox.ItemContainerStyle>
+                                        <!-- Remove default ListBoxItem selection styling -->
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Padding" Value="0"/>
+                                            <Setter Property="Margin" Value="0"/>
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                        <ContentPresenter/>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource NewsItemStyle}">
+                                                <StackPanel>
+                                                    <!-- Sentiment indicator + Time -->
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                        <Ellipse Width="6" Height="6" Margin="0,0,6,0">
+                                                            <Ellipse.Style>
+                                                                <Style TargetType="Ellipse">
+                                                                    <Setter Property="Fill" Value="#8B949E"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsBullish}" Value="True">
+                                                                            <Setter Property="Fill" Value="#26A69A"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding IsBearish}" Value="True">
+                                                                            <Setter Property="Fill" Value="#EF5350"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Ellipse.Style>
+                                                        </Ellipse>
+                                                        <TextBlock Text="{Binding PublishedAt, StringFormat='{}{0:MMM dd, HH:mm}'}" 
+                                                                   Style="{StaticResource NewsMetaStyle}"
+                                                                   Margin="0"/>
                                                     </StackPanel>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </ScrollViewer>
+
+                                                    <!-- Headline -->
+                                                    <TextBlock Text="{Binding Headline}" 
+                                                               Style="{StaticResource NewsHeadlineStyle}"/>
+
+                                                    <!-- Source -->
+                                                    <TextBlock Style="{StaticResource NewsMetaStyle}">
+                                                        <Run Text="{Binding Publisher, Mode=OneWay, TargetNullValue='Unknown'}"/>
+                                                        <Run Text=" • "/>
+                                                        <Run Text="{Binding SentimentCategory, Mode=OneWay}"/>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
 
                                 <!-- Empty State (shown when no articles) -->
                                 <!-- Note: Visibility managed by code-behind or could add HasArticles DP -->

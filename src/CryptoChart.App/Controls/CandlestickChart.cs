@@ -21,6 +21,11 @@ public class CandlestickChart : FrameworkElement
 
     private bool _isDragging;
     private Point _lastDragPoint;
+    
+    // Internal crosshair state (avoids DP change callbacks during mouse move)
+    private double _crosshairXInternal;
+    private double _crosshairYInternal;
+    private bool _showCrosshairInternal;
 
     #region Constructors
 
@@ -416,7 +421,12 @@ public class CandlestickChart : FrameworkElement
 
         using var dc = _crosshairVisual.RenderOpen();
 
-        if (!ShowCrosshair || CrosshairX <= LeftMargin || CrosshairX >= ActualWidth - RightMargin)
+        // Use internal fields for fast path (mouse move), fall back to DPs for external bindings
+        var showCrosshair = _showCrosshairInternal || ShowCrosshair;
+        var crosshairX = _crosshairXInternal != 0 ? _crosshairXInternal : CrosshairX;
+        var crosshairY = _crosshairYInternal != 0 ? _crosshairYInternal : CrosshairY;
+
+        if (!showCrosshair || crosshairX <= LeftMargin || crosshairX >= ActualWidth - RightMargin)
             return;
 
         var crosshairPen = new Pen(new SolidColorBrush(Color.FromRgb(0x8B, 0x94, 0x9E)), 1)
@@ -427,25 +437,25 @@ public class CandlestickChart : FrameworkElement
 
         // Vertical line
         dc.DrawLine(crosshairPen, 
-            new Point(CrosshairX, TopMargin), 
-            new Point(CrosshairX, ActualHeight - BottomMargin));
+            new Point(crosshairX, TopMargin), 
+            new Point(crosshairX, ActualHeight - BottomMargin));
 
         // Horizontal line
-        if (CrosshairY >= TopMargin && CrosshairY <= ActualHeight - BottomMargin)
+        if (crosshairY >= TopMargin && crosshairY <= ActualHeight - BottomMargin)
         {
             dc.DrawLine(crosshairPen, 
-                new Point(LeftMargin, CrosshairY), 
-                new Point(ActualWidth - RightMargin, CrosshairY));
+                new Point(LeftMargin, crosshairY), 
+                new Point(ActualWidth - RightMargin, crosshairY));
 
             // Price label at crosshair
-            var price = YToPrice(CrosshairY);
-            DrawPriceLabel(dc, price, CrosshairY);
+            var price = YToPrice(crosshairY);
+            DrawPriceLabel(dc, price, crosshairY);
         }
 
         // Draw tooltip if we have a hovered candle
         if (HoveredCandle != null)
         {
-            DrawTooltip(dc);
+            DrawTooltip(dc, crosshairX, crosshairY);
         }
     }
 
@@ -473,7 +483,7 @@ public class CandlestickChart : FrameworkElement
         dc.DrawText(formattedText, new Point(5, y - formattedText.Height / 2));
     }
 
-    private void DrawTooltip(DrawingContext dc)
+    private void DrawTooltip(DrawingContext dc, double crosshairX, double crosshairY)
     {
         if (HoveredCandle == null) return;
 
@@ -529,8 +539,8 @@ public class CandlestickChart : FrameworkElement
 
         var tooltipWidth = maxWidth + padding * 2;
         var tooltipHeight = lines.Count * lineHeight + padding * 2;
-        var tooltipX = Math.Min(CrosshairX + 15, ActualWidth - tooltipWidth - 10);
-        var tooltipY = Math.Max(TopMargin, Math.Min(CrosshairY - tooltipHeight / 2, ActualHeight - BottomMargin - tooltipHeight));
+        var tooltipX = Math.Min(crosshairX + 15, ActualWidth - tooltipWidth - 10);
+        var tooltipY = Math.Max(TopMargin, Math.Min(crosshairY - tooltipHeight / 2, ActualHeight - BottomMargin - tooltipHeight));
 
         // Draw background
         var tooltipRect = new Rect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
@@ -608,20 +618,42 @@ public class CandlestickChart : FrameworkElement
         }
         else
         {
-            CrosshairX = pos.X;
-            CrosshairY = pos.Y;
-            ShowCrosshair = true;
+            // Update crosshair position directly and redraw once
+            // (Avoid setting DPs individually - each would trigger DrawCrosshair)
+            UpdateCrosshairPosition(pos.X, pos.Y);
 
             var candleIndex = XToCandleIndex(pos.X);
             RaiseEvent(new CandleHoveredEventArgs(CandleHoveredEvent, this, candleIndex));
         }
     }
 
+    /// <summary>
+    /// Updates crosshair position with a single redraw.
+    /// Avoids the 3x DrawCrosshair() calls from setting CrosshairX, CrosshairY, ShowCrosshair separately.
+    /// </summary>
+    private void UpdateCrosshairPosition(double x, double y)
+    {
+        // Store values without triggering property changed callbacks
+        _crosshairXInternal = x;
+        _crosshairYInternal = y;
+        _showCrosshairInternal = true;
+        
+        // Single redraw
+        DrawCrosshair();
+    }
+
     protected override void OnMouseLeave(MouseEventArgs e)
     {
         base.OnMouseLeave(e);
+        
+        // Reset internal state
+        _showCrosshairInternal = false;
+        _crosshairXInternal = 0;
+        _crosshairYInternal = 0;
+        
         ShowCrosshair = false;
         _isDragging = false;
+        DrawCrosshair(); // Clear the crosshair visual
         RaiseEvent(new CandleHoveredEventArgs(CandleHoveredEvent, this, -1));
     }
 

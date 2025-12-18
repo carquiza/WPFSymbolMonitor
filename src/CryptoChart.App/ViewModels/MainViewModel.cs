@@ -331,6 +331,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         _realtimeService.CandleUpdated -= OnCandleUpdated;
         _realtimeService.ConnectionStatusChanged -= OnConnectionStatusChanged;
         await _realtimeService.UnsubscribeAllAsync();
+        
+        // Dispose child view models
+        NewsViewModel?.Dispose();
     }
 
     #endregion
