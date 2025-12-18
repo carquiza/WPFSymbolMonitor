@@ -38,6 +38,12 @@ public partial class ChartViewModel : ObservableObject
     private Candle? _hoveredCandle;
 
     [ObservableProperty]
+    private int _selectedCandleIndex = -1;
+
+    [ObservableProperty]
+    private Candle? _selectedCandle;
+
+    [ObservableProperty]
     private bool _showCrosshair;
 
     [ObservableProperty]
@@ -253,6 +259,31 @@ public partial class ChartViewModel : ObservableObject
     {
         HoveredCandle = null;
         ShowCrosshair = false;
+    }
+
+    /// <summary>
+    /// Selects a candle by index. Call this when user clicks on a candle.
+    /// </summary>
+    public void SelectCandle(int candleIndex)
+    {
+        if (candleIndex >= 0 && candleIndex < VisibleCandles.Count)
+        {
+            SelectedCandleIndex = candleIndex;
+            SelectedCandle = VisibleCandles[candleIndex];
+        }
+        else
+        {
+            ClearSelection();
+        }
+    }
+
+    /// <summary>
+    /// Clears the selected candle.
+    /// </summary>
+    public void ClearSelection()
+    {
+        SelectedCandleIndex = -1;
+        SelectedCandle = null;
     }
 
     #endregion

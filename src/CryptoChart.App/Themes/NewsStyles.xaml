@@ -168,8 +168,9 @@
                                                 BorderThickness="0"
                                                 Foreground="#8B949E"
                                                 Cursor="Hand"
-                                                Visibility="{Binding DataContext.NewsViewModel.IsShowingCandleSelection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}"
-                                                ToolTip="Show all news"/>
+                                                Command="{Binding DataContext.ClearCandleSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Visibility="{Binding DataContext.NewsViewModel.HasPinnedCandle, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                ToolTip="Clear selection"/>
                                     </Grid>
                                 </Border>
 

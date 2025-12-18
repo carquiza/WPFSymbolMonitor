@@ -72,6 +72,28 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Handle click on a candle to select it for persistent news display.
+    /// </summary>
+    private void OnCandleClicked(object sender, CandleClickedEventArgs e)
+    {
+        // Toggle selection: clicking the same candle deselects it
+        if (ViewModel.ChartViewModel.SelectedCandleIndex == e.CandleIndex)
+        {
+            ViewModel.ChartViewModel.ClearSelection();
+            ViewModel.NewsViewModel?.ClearSelection();
+        }
+        else
+        {
+            ViewModel.ChartViewModel.SelectCandle(e.CandleIndex);
+            var selectedCandle = ViewModel.ChartViewModel.SelectedCandle;
+            if (selectedCandle != null)
+            {
+                ViewModel.NewsViewModel?.SetSelectedCandle(selectedCandle);
+            }
+        }
+    }
+
+    /// <summary>
     /// Throttled hover callback for news panel updates.
     /// Called at most every 50ms instead of every mouse move.
     /// This prevents UI stalls from cascading news panel updates.
@@ -86,14 +108,17 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Handle mouse leaving the chart area.
-    /// Clears hover state from both chart and news panel.
+    /// Clears hover state but preserves selected candle for news.
     /// </summary>
     private void OnChartMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
     {
         // Clear chart tooltip
         ViewModel.ChartViewModel.SetHoveredCandle(-1);
 
-        // Clear news panel highlight
+        // Push -1 to hover stream - this will:
+        // 1. Cancel any pending throttled hover events
+        // 2. Eventually call SetHighlightedIndex(-1, null) which clears sentiment chart
+        // 3. SetHighlightedIndex will skip clearing news panel if there's a pinned candle
         _hoverStream.OnHover(-1);
     }
 }

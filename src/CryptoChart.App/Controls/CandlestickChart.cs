@@ -18,9 +18,13 @@ public class CandlestickChart : FrameworkElement
     private DrawingVisual? _gridVisual;
     private DrawingVisual? _crosshairVisual;
     private DrawingVisual? _tooltipVisual;
+    private DrawingVisual? _selectionVisual;
 
     private bool _isDragging;
+    private bool _dragStarted;  // True if mouse actually moved after mousedown
+    private Point _mouseDownPoint;
     private Point _lastDragPoint;
+    private const double DragThreshold = 5; // Pixels of movement before it's considered a drag
     
     // Internal crosshair state (avoids DP change callbacks during mouse move)
     private double _crosshairXInternal;
@@ -36,11 +40,13 @@ public class CandlestickChart : FrameworkElement
         // Create visual layers (order matters for z-index)
         _gridVisual = new DrawingVisual();
         _chartVisual = new DrawingVisual();
+        _selectionVisual = new DrawingVisual();
         _crosshairVisual = new DrawingVisual();
         _tooltipVisual = new DrawingVisual();
 
         _visuals.Add(_gridVisual);
         _visuals.Add(_chartVisual);
+        _visuals.Add(_selectionVisual);
         _visuals.Add(_crosshairVisual);
         _visuals.Add(_tooltipVisual);
 
@@ -152,6 +158,17 @@ public class CandlestickChart : FrameworkElement
         set => SetValue(ShowCrosshairProperty, value);
     }
 
+    public static readonly DependencyProperty SelectedCandleIndexProperty =
+        DependencyProperty.Register(nameof(SelectedCandleIndex), typeof(int),
+            typeof(CandlestickChart),
+            new FrameworkPropertyMetadata(-1, OnSelectedCandleIndexChanged));
+
+    public int SelectedCandleIndex
+    {
+        get => (int)GetValue(SelectedCandleIndexProperty);
+        set => SetValue(SelectedCandleIndexProperty, value);
+    }
+
     public static readonly DependencyProperty HoveredSentimentProperty =
         DependencyProperty.Register(nameof(HoveredSentiment), typeof(CandleSentiment),
             typeof(CandlestickChart),
@@ -219,6 +236,16 @@ public class CandlestickChart : FrameworkElement
         remove => RemoveHandler(CandleHoveredEvent, value);
     }
 
+    public static readonly RoutedEvent CandleClickedEvent =
+        EventManager.RegisterRoutedEvent(nameof(CandleClicked), RoutingStrategy.Bubble,
+            typeof(EventHandler<CandleClickedEventArgs>), typeof(CandlestickChart));
+
+    public event EventHandler<CandleClickedEventArgs> CandleClicked
+    {
+        add => AddHandler(CandleClickedEvent, value);
+        remove => RemoveHandler(CandleClickedEvent, value);
+    }
+
     #endregion
 
     #region Visual Tree Overrides
@@ -275,11 +302,17 @@ public class CandlestickChart : FrameworkElement
         ((CandlestickChart)d).DrawCrosshair();
     }
 
+    private static void OnSelectedCandleIndexChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        ((CandlestickChart)d).DrawSelectionMarker();
+    }
+
     public void InvalidateChart()
     {
         DrawBackground();
         DrawGrid();
         DrawCandles();
+        DrawSelectionMarker();
         DrawCrosshair();
     }
 
@@ -349,6 +382,49 @@ public class CandlestickChart : FrameworkElement
         borderPen.Freeze();
         dc.DrawRectangle(null, borderPen, 
             new Rect(LeftMargin, TopMargin, ChartWidth, ChartHeight));
+    }
+
+    private void DrawSelectionMarker()
+    {
+        if (_selectionVisual == null) return;
+
+        using var dc = _selectionVisual.RenderOpen();
+
+        if (SelectedCandleIndex < 0 || Candles == null) return;
+
+        var candleList = Candles.ToList();
+        if (SelectedCandleIndex >= candleList.Count) return;
+
+        var candleCount = candleList.Count;
+        var candleSpacing = ChartWidth / candleCount;
+        var x = LeftMargin + (SelectedCandleIndex * candleSpacing) + (candleSpacing / 2);
+
+        // Draw a vertical highlight bar behind the selected candle
+        var highlightBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xD7, 0x00)); // Semi-transparent gold
+        highlightBrush.Freeze();
+
+        var halfWidth = candleSpacing / 2 + 2;
+        var highlightRect = new Rect(
+            x - halfWidth,
+            TopMargin,
+            halfWidth * 2,
+            ChartHeight);
+        dc.DrawRectangle(highlightBrush, null, highlightRect);
+
+        // Draw a small marker triangle at the top
+        var markerBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xD7, 0x00)); // Gold
+        markerBrush.Freeze();
+
+        var triangleSize = 8.0;
+        var triangle = new StreamGeometry();
+        using (var ctx = triangle.Open())
+        {
+            ctx.BeginFigure(new Point(x, TopMargin + triangleSize), true, true);
+            ctx.LineTo(new Point(x - triangleSize, TopMargin), false, false);
+            ctx.LineTo(new Point(x + triangleSize, TopMargin), false, false);
+        }
+        triangle.Freeze();
+        dc.DrawGeometry(markerBrush, null, triangle);
     }
 
     private void DrawCandles()
@@ -609,22 +685,35 @@ public class CandlestickChart : FrameworkElement
 
         if (_isDragging)
         {
-            var delta = (int)((pos.X - _lastDragPoint.X) / 10);
-            if (delta != 0)
+            // Check if we've moved enough to start dragging
+            if (!_dragStarted)
             {
-                RaiseEvent(new ScrollEventArgs(ScrollRequestedEvent, this, -delta));
-                _lastDragPoint = pos;
+                var distance = Math.Sqrt(
+                    Math.Pow(pos.X - _mouseDownPoint.X, 2) + 
+                    Math.Pow(pos.Y - _mouseDownPoint.Y, 2));
+                
+                if (distance >= DragThreshold)
+                {
+                    _dragStarted = true;
+                }
+            }
+
+            // Only scroll if we've actually started dragging
+            if (_dragStarted)
+            {
+                var delta = (int)((pos.X - _lastDragPoint.X) / 10);
+                if (delta != 0)
+                {
+                    RaiseEvent(new ScrollEventArgs(ScrollRequestedEvent, this, -delta));
+                    _lastDragPoint = pos;
+                }
             }
         }
-        else
-        {
-            // Update crosshair position directly and redraw once
-            // (Avoid setting DPs individually - each would trigger DrawCrosshair)
-            UpdateCrosshairPosition(pos.X, pos.Y);
 
-            var candleIndex = XToCandleIndex(pos.X);
-            RaiseEvent(new CandleHoveredEventArgs(CandleHoveredEvent, this, candleIndex));
-        }
+        // Always update crosshair and hover state (even during potential click)
+        UpdateCrosshairPosition(pos.X, pos.Y);
+        var candleIndex = XToCandleIndex(pos.X);
+        RaiseEvent(new CandleHoveredEventArgs(CandleHoveredEvent, this, candleIndex));
     }
 
     /// <summary>
@@ -660,16 +749,29 @@ public class CandlestickChart : FrameworkElement
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
+        _mouseDownPoint = e.GetPosition(this);
+        _lastDragPoint = _mouseDownPoint;
         _isDragging = true;
-        _lastDragPoint = e.GetPosition(this);
+        _dragStarted = false; // Will become true if mouse moves beyond threshold
         CaptureMouse();
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+        
+        var wasClick = _isDragging && !_dragStarted;
         _isDragging = false;
+        _dragStarted = false;
         ReleaseMouseCapture();
+
+        // If it was a click (not a drag), raise the clicked event
+        if (wasClick)
+        {
+            var pos = e.GetPosition(this);
+            var candleIndex = XToCandleIndex(pos.X);
+            RaiseEvent(new CandleClickedEventArgs(CandleClickedEvent, this, candleIndex));
+        }
     }
 
     protected override void OnMouseWheel(MouseWheelEventArgs e)
@@ -729,6 +831,17 @@ public class CandleHoveredEventArgs : RoutedEventArgs
     public int CandleIndex { get; }
 
     public CandleHoveredEventArgs(RoutedEvent routedEvent, object source, int candleIndex) 
+        : base(routedEvent, source)
+    {
+        CandleIndex = candleIndex;
+    }
+}
+
+public class CandleClickedEventArgs : RoutedEventArgs
+{
+    public int CandleIndex { get; }
+
+    public CandleClickedEventArgs(RoutedEvent routedEvent, object source, int candleIndex) 
         : base(routedEvent, source)
     {
         CandleIndex = candleIndex;

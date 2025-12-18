@@ -38,6 +38,14 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         // Create the child view models
         ChartViewModel = new ChartViewModel();
         NewsViewModel = new NewsViewModel();
+
+        // Subscribe to visible range changes to update news panel
+        ChartViewModel.VisibleRangeChanged += OnVisibleRangeChanged;
+    }
+
+    private void OnVisibleRangeChanged(object? sender, VisibleRangeChangedEventArgs e)
+    {
+        NewsViewModel?.UpdateVisibleWindow(e.ScrollOffset, e.VisibleCandleCount, e.StartTime, e.EndTime);
     }
 
     #region Properties
@@ -138,6 +146,13 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             return;
 
         await LoadCandlesAsync();
+    }
+
+    [RelayCommand]
+    private void ClearCandleSelection()
+    {
+        ChartViewModel.ClearSelection();
+        NewsViewModel?.ClearSelection();
     }
 
     #endregion
@@ -330,6 +345,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         _realtimeService.CandleUpdated -= OnCandleUpdated;
         _realtimeService.ConnectionStatusChanged -= OnConnectionStatusChanged;
+        ChartViewModel.VisibleRangeChanged -= OnVisibleRangeChanged;
         await _realtimeService.UnsubscribeAllAsync();
         
         // Dispose child view models

@@ -18,6 +18,7 @@ public partial class NewsViewModel : ObservableObject, IDisposable
     private readonly List<CandleSentiment> _allSentiments = new();
     private readonly object _articlesLock = new();
     private readonly CancellationManager _articleFilterCancellation = new();
+    private Candle? _pinnedCandle;  // The candle that was clicked/selected for persistent display
 
     public NewsViewModel()
     {
@@ -103,6 +104,12 @@ public partial class NewsViewModel : ObservableObject, IDisposable
     /// </summary>
     [ObservableProperty]
     private string _selectionHeaderText = "Market News";
+
+    /// <summary>
+    /// True when a candle has been clicked/pinned for persistent news display.
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasPinnedCandle;
 
     #endregion
 
@@ -258,14 +265,22 @@ public partial class NewsViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Sets the highlighted index and updates related properties.
-    /// Also filters news articles to the selected candle's time range.
+    /// When a candle is pinned (clicked), news panel stays on that candle.
+    /// Only updates news panel during hover if no candle is pinned.
     /// </summary>
     public void SetHighlightedIndex(int index, Candle? candle = null)
     {
+        // Always update sentiment chart highlighting
         HighlightedIndex = index;
         HoveredSentiment = GetSentimentAtIndex(index);
 
-        // Update selected candle articles if candle provided
+        // If a candle is pinned, don't update the news panel - keep showing pinned candle's news
+        if (HasPinnedCandle)
+        {
+            return;
+        }
+
+        // No pinned candle - update news panel based on hover
         if (candle != null && index >= 0)
         {
             IsShowingCandleSelection = true;
@@ -347,6 +362,50 @@ public partial class NewsViewModel : ObservableObject, IDisposable
         HoveredSentiment = null;
         HoveredArticle = null;
         ClearCandleSelection();
+    }
+
+    /// <summary>
+    /// Sets a candle as "selected" (pinned) for persistent news display.
+    /// This is called when the user clicks on a candle.
+    /// </summary>
+    public void SetSelectedCandle(Candle candle)
+    {
+        _pinnedCandle = candle;
+        HasPinnedCandle = true;
+        IsShowingCandleSelection = true;
+        SelectionHeaderText = $"📌 News for {candle.OpenTime:MMM dd, HH:mm}";
+        
+        // Fire-and-forget: offload filtering to background thread
+        _ = UpdateSelectedCandleArticlesAsync(candle);
+    }
+
+    /// <summary>
+    /// Clears the selected/pinned candle. Called when user clicks same candle again.
+    /// </summary>
+    public void ClearSelection()
+    {
+        _pinnedCandle = null;
+        HasPinnedCandle = false;
+        ClearCandleSelection();
+    }
+
+    /// <summary>
+    /// Reverts the news display to the pinned candle after hover ends.
+    /// </summary>
+    public void RevertToSelectedCandle()
+    {
+        if (_pinnedCandle != null)
+        {
+            // Reset the header to show pinned state
+            SelectionHeaderText = $"📌 News for {_pinnedCandle.OpenTime:MMM dd, HH:mm}";
+            
+            // Re-filter to the pinned candle's articles
+            _ = UpdateSelectedCandleArticlesAsync(_pinnedCandle);
+        }
+        else
+        {
+            ClearCandleSelection();
+        }
     }
 
     private void ClearCandleSelection()

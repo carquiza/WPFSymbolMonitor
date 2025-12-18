@@ -138,6 +138,7 @@
                                            MaxPrice="{Binding ChartViewModel.MaxPrice}"
                                            HoveredCandle="{Binding ChartViewModel.HoveredCandle, Mode=TwoWay}"
                                            HoveredSentiment="{Binding NewsViewModel.HoveredSentiment, Mode=OneWay}"
+                                           SelectedCandleIndex="{Binding ChartViewModel.SelectedCandleIndex, Mode=TwoWay}"
                                            ShowCrosshair="{Binding ChartViewModel.ShowCrosshair}"
                                            CrosshairX="{Binding ChartViewModel.CrosshairX, Mode=TwoWay}"
                                            CrosshairY="{Binding ChartViewModel.CrosshairY, Mode=TwoWay}"
@@ -148,6 +149,7 @@
                                            ScrollRequested="OnChartScrollRequested"
                                            ZoomRequested="OnChartZoomRequested"
                                            CandleHovered="OnCandleHovered"
+                                           CandleClicked="OnCandleClicked"
                                            MouseLeave="OnChartMouseLeave"/>
 
                 <!-- Sentiment Bar Chart (Below Candlesticks) -->
