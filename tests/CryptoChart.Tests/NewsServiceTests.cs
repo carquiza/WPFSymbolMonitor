@@ -298,8 +298,10 @@ public class NewsServiceTests
     [InlineData(null, "Somewhat-Bullish", true, false)]
     [InlineData(null, "Neutral", false, false)]
     public void NewsArticle_SentimentProperties_CalculateCorrectly(
-        decimal? score, string? label, bool expectedBullish, bool expectedBearish)
+        double? scoreDouble, string? label, bool expectedBullish, bool expectedBearish)
     {
+        decimal? score = scoreDouble.HasValue ? (decimal)scoreDouble.Value : null;
+
         // Arrange
         var article = new NewsArticle
         {

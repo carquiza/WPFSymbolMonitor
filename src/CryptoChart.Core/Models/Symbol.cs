@@ -31,6 +31,11 @@ public class Symbol
     public string DisplayName => $"{BaseAsset}/{QuoteAsset}";
 
     /// <summary>
+    /// Returns the display name of the symbol.
+    /// </summary>
+    public override string ToString() => DisplayName;
+
+    /// <summary>
     /// Whether this symbol is active and should be tracked.
     /// </summary>
     public bool IsActive { get; set; } = true;

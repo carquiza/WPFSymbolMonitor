@@ -177,6 +177,18 @@ public class SymbolTests
 
         Assert.True(symbol.IsActive);
     }
+    [Fact]
+    public void ToString_ReturnsDisplayName()
+    {
+        var symbol = new Symbol
+        {
+            Name = "BTCUSDT",
+            BaseAsset = "BTC",
+            QuoteAsset = "USDT"
+        };
+
+        Assert.Equal("BTC/USDT", symbol.ToString());
+    }
 }
 
 public class TimeFrameExtensionsTests
